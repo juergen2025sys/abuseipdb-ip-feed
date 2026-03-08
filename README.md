@@ -1,4 +1,4 @@
-[README (6).md](https://github.com/user-attachments/files/25822951/README.6.md)
+
 <div align="center">
 
 # 🛡️ NETSHIELD
