@@ -1,4 +1,5 @@
 
+<div align="center">
 
 # 🛡️ NETSHIELD
 
@@ -20,7 +21,9 @@
 
 NETSHIELD provides ready-to-use IPv4 blocklists organized by country, continent, and threat confidence level. All lists are automatically updated and available as raw links — simply paste into your firewall and forget.
 
- ## 🌍 All Countries
+---
+
+## 🌍 All Countries
 
 | Property | Value |
 |---|---|
@@ -139,33 +142,7 @@ All IP ranges have been verified to be present in `all_countries_ipv4.txt`:
 - 🕵️ Threat intelligence feeds
 - 🛑 Known malicious IP lists
 
-## 📁 File Structure
-
-```
-NETSHIELD/
-├── all_countries_ipv4.txt                  ← All 249 countries combined
-├── blacklist_confidence40_ipv4.txt         ← Confirmed threats (≥ 40% confidence)
-├── watchlist_confidence20to39_ipv4.txt     ← Suspicious IPs (20–39% confidence)
-├── continents/
-│   ├── europe_ipv4.txt
-│   ├── asia_ipv4.txt
-│   ├── africa_ipv4.txt
-│   ├── north_america_ipv4.txt
-│   ├── south_america_ipv4.txt
-│   └── oceania_ipv4.txt
-└── countries/
-    ├── europe/
-    │   ├── russia_ipv4.txt
-    │   ├── germany_ipv4.txt
-    │   └── ...
-    ├── asia/
-    │   ├── china_ipv4.txt
-    │   ├── iran_ipv4.txt
-    │   └── ...
-    ├── africa/
-    ├── north_america/
-    ├── south_america/
-    └── oceania/
+---
 
 ## 📜 License
 
