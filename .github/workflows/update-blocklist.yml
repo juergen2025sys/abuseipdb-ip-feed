@@ -6,6 +6,9 @@ on:
     - cron: '0 3 * * 3'  # Jeden Mittwoch um 03:00 UTC
   workflow_dispatch:       # Auch manuell per Knopfdruck auslösbar
 
+permissions:
+  contents: write
+
 jobs:
   update-blocklist:
     runs-on: ubuntu-latest
@@ -13,6 +16,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
       - name: Download All Countries IPv4 Ranges
         run: |
