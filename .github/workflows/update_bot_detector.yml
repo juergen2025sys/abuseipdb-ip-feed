@@ -1,4 +1,4 @@
-ame: Update IP Blacklist
+name: Update IP Blacklist
 
 on:
   schedule:
