@@ -40,16 +40,10 @@ jobs:
                   print(f"  FEHLER: {e}")
                   return None
 
-          # ── Tranco Top-1M laden (legitime Domains → IPs) ─────────────────
-          print("Tranco Top-1M laden...")
-          tranco_text = fetch("https://tranco-list.eu/top-1m.csv.zip")
-          # Fallback: rohe Liste
-          if not tranco_text:
-              tranco_text = fetch("https://raw.githubusercontent.com/nicksyostudy/tranco/main/tranco.csv")
-
-          # Einfachere Alternative: Alexa via Majestic
+          # ── Majestic Million - Top legitime Domains ─────────────────────
           print("Majestic Million (Top-Domains) laden...")
           majestic_text = fetch("https://downloads.majestic.com/majestic_million.csv")
+          tranco_text = None  # ZIP-Format nicht unterstützt, Majestic wird verwendet
 
           legitimate_domains = set()
           if majestic_text:
