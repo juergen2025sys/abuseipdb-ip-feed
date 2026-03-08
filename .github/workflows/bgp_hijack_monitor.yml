@@ -2,7 +2,7 @@ name: BGP Hijack Monitor
 
 on:
   schedule:
-    - cron: '30 */6 * * *'  # alle 6 Stunden, versetzt zum Blacklist-Workflow
+    - cron: '15 */6 * * *'  # läuft VOR dem Blacklist-Workflow (der läuft um :00)
   workflow_dispatch:
 
 permissions:
@@ -18,10 +18,7 @@ jobs:
         with:
           persist-credentials: true
 
-      - name: Install Dependencies
-        run: pip install requests --break-system-packages
-
-      - name: Run BGP Hijack Monitor
+      - name: Run BGP Hijack Monitor & Build Compromise List
         run: |
           python3 << 'EOF'
           import urllib.request
@@ -30,312 +27,296 @@ jobs:
           import re
           import os
           import time
+          import ipaddress
           from datetime import datetime, timezone
-          from collections import defaultdict
 
           now = datetime.now(timezone.utc)
           now_str = now.strftime("%Y-%m-%d %H:%M UTC")
-          report_lines = []
-          report_lines.append(f"# BGP Hijack Monitor Report")
-          report_lines.append(f"**Erstellt:** {now_str}\n")
 
           # ══════════════════════════════════════════════════════════════════
-          # TEIL 1: BGP-Anomalie-Feeds (öffentliche Quellen)
+          # HILFSFUNKTIONEN
           # ══════════════════════════════════════════════════════════════════
 
-          report_lines.append("---")
-          report_lines.append("## 1. BGP-Anomalien aus öffentlichen Feeds\n")
-
-          BGP_ANOMALY_SOURCES = {
-              "RIPE RIS BGP Beacons (Hijack Candidates)": {
-                  "url": "https://stat.ripe.net/data/bgp-state/data.json?resource=84.205.67.0/24&rrcs=0,5,10,25",
-                  "type": "ripe_stat"
-              },
-              "Cloudflare Radar BGP Hijacks (letzte 24h)": {
-                  "url": "https://api.cloudflare.com/client/v4/radar/bgp/hijacks/events?dateRange=1d&per_page=50",
-                  "type": "cloudflare_radar"
-              },
-              "BGPStream CAIDA (aktuelle Hijack-Events)": {
-                  "url": "https://bgpstream.crossroads.exchange/api/events?type=hijack&limit=50",
-                  "type": "bgpstream"
-              },
-              "RIPE NCC BGP Hijack Feed": {
-                  "url": "https://stat.ripe.net/data/routing-status/data.json?resource=0.0.0.0/0&min_peers_seeing=10",
-                  "type": "ripe_routing"
-              },
-          }
-
-          def fetch_url(url, timeout=20):
+          def fetch(url, timeout=20):
               try:
-                  req = urllib.request.Request(
-                      url,
-                      headers={
-                          "User-Agent": "BGPHijackMonitor/1.0 (github-actions; security-research)",
-                          "Accept": "application/json"
-                      }
-                  )
+                  req = urllib.request.Request(url, headers={
+                      "User-Agent": "BGPHijackMonitor/2.0 (github-actions; security-research)",
+                      "Accept": "application/json"
+                  })
                   with urllib.request.urlopen(req, timeout=timeout) as r:
-                      return r.read().decode("utf-8", errors="ignore"), r.status
+                      return json.loads(r.read().decode("utf-8", errors="ignore")), r.status
               except urllib.error.HTTPError as e:
                   return None, e.code
               except Exception as e:
                   return None, str(e)
 
-          # Cloudflare Radar BGP Hijacks (bester öffentlicher Feed ohne Auth)
-          report_lines.append("### 1.1 Cloudflare Radar – BGP Hijack Events (letzte 24h)\n")
-          cf_url = "https://api.cloudflare.com/client/v4/radar/bgp/hijacks/events?dateRange=1d&per_page=100&confidence=medium,high"
-          cf_data, cf_status = fetch_url(cf_url)
+          def is_private(entry):
+              try:
+                  ip_str = entry.split("/")[0]
+                  ip = ipaddress.ip_address(ip_str)
+                  return ip.is_private or ip.is_loopback or ip.is_multicast or ip.is_reserved
+              except:
+                  return True
 
+          def cidr_to_ips_sample(cidr, max_ips=256):
+              try:
+                  net = ipaddress.ip_network(cidr, strict=False)
+                  hosts = list(net.hosts())
+                  if len(hosts) > max_ips:
+                      step = max(1, len(hosts) // max_ips)
+                      hosts = hosts[::step][:max_ips]
+                  return [str(h) for h in hosts]
+              except:
+                  return []
+
+          # ══════════════════════════════════════════════════════════════════
+          # SCHRITT 1: Hijacker-ASNs aus BGP-Feeds sammeln
+          # ══════════════════════════════════════════════════════════════════
+
+          print("=" * 60)
+          print("SCHRITT 1: BGP-Feeds abfragen")
+          print("=" * 60)
+
+          hijacker_asns = {}  # ASN -> {"sources": [...], "prefixes": set()}
+
+          # ── Feed 1: Cloudflare Radar ──────────────────────────────────────
+          print("\n[1/2] Cloudflare Radar BGP Hijack Events (letzte 3 Tage)...")
+          cf_data, cf_status = fetch(
+              "https://api.cloudflare.com/client/v4/radar/bgp/hijacks/events"
+              "?dateRange=3d&per_page=200&confidence=medium,high"
+          )
+          cf_found = 0
           if cf_data:
-              try:
-                  cf_json = json.loads(cf_data)
-                  events = cf_json.get("result", {}).get("asns_events", [])
-                  if not events:
-                      # Try alternative key
-                      events = cf_json.get("result", {}).get("events", [])
-                  
-                  if events:
-                      report_lines.append(f"| Zeitstempel | Hijacker ASN | Opfer ASN | Präfix | Confidence |")
-                      report_lines.append(f"|---|---|---|---|---|")
-                      for ev in events[:30]:
-                          ts = ev.get("eventDatetime", ev.get("timestamp", "n/a"))
-                          hijacker = ev.get("hijackerAsn", ev.get("hijacker_asn", "n/a"))
-                          victim = ev.get("victimAsn", ev.get("victim_asn", "n/a"))
-                          prefix = ev.get("prefix", "n/a")
-                          confidence = ev.get("confidence", "n/a")
-                          report_lines.append(f"| {ts} | AS{hijacker} | AS{victim} | {prefix} | {confidence} |")
-                      report_lines.append(f"\n**Gesamt Events:** {len(events)}")
-                  else:
-                      report_lines.append(f"*Keine Hijack-Events in den letzten 24h gefunden (oder API-Format geändert).*")
-                      report_lines.append(f"\n<details><summary>API-Antwort (Debug)</summary>\n\n```json\n{cf_data[:500]}\n```\n</details>")
-              except Exception as e:
-                  report_lines.append(f"*Parse-Fehler: {e}*")
+              events = (cf_data.get("result", {}).get("asns_events") or
+                        cf_data.get("result", {}).get("events") or [])
+              for ev in events:
+                  asn = str(ev.get("hijackerAsn", ev.get("hijacker_asn", "")))
+                  prefix = ev.get("prefix", "")
+                  if asn and asn not in ("None", ""):
+                      key = f"AS{asn}"
+                      if key not in hijacker_asns:
+                          hijacker_asns[key] = {"sources": [], "prefixes": set()}
+                      if "cloudflare_radar" not in hijacker_asns[key]["sources"]:
+                          hijacker_asns[key]["sources"].append("cloudflare_radar")
+                      if prefix:
+                          hijacker_asns[key]["prefixes"].add(prefix)
+                      cf_found += 1
+              print(f"   → {cf_found} Events → {len(hijacker_asns)} Hijacker-ASNs")
           else:
-              report_lines.append(f"*Cloudflare Radar API nicht erreichbar (Status: {cf_status}). Kein API-Key erforderlich, aber Rate-Limit möglich.*")
+              print(f"   → Fehler (HTTP {cf_status})")
 
-          report_lines.append("")
-
-          # RIPE Stat – BGP Hijack Candidates via Visibility Check
-          report_lines.append("### 1.2 RIPE NCC – BGP Routing Anomalien\n")
-          
-          # Bekannte problematische ASNs gegen RIPE prüfen
-          SUSPICIOUS_ASNS_CHECK = [
-              "AS209588",  # Flyservers / häufig missbraucht
-              "AS398705",  # Bdrive
-              "AS14576",   # Hosting Services
-              "AS36352",   # ColoCrossing (häufig abuse)
-              "AS13335",   # Cloudflare (Whitelist-Check)
-          ]
-
-          report_lines.append("**RIPE BGP-State für bekannte Abuse-ASNs:**\n")
-          report_lines.append(f"| ASN | Prefix-Anzahl | Routed | Status |")
-          report_lines.append(f"|---|---|---|---|")
-
-          for asn in SUSPICIOUS_ASNS_CHECK:
-              asn_num = asn.replace("AS", "")
-              ripe_url = f"https://stat.ripe.net/data/as-routing-consistency/data.json?resource={asn}"
-              ripe_data, ripe_status = fetch_url(ripe_url)
-              time.sleep(0.5)  # Rate-Limit respektieren
-              
-              if ripe_data:
-                  try:
-                      rj = json.loads(ripe_data)
-                      prefixes = rj.get("data", {}).get("prefixes", [])
-                      routed = sum(1 for p in prefixes if p.get("in_bgp"))
-                      status = "⚠️ Aktiv" if routed > 0 else "✅ Inaktiv"
-                      report_lines.append(f"| {asn} | {len(prefixes)} | {routed} | {status} |")
-                  except:
-                      report_lines.append(f"| {asn} | - | - | Parse-Fehler |")
-              else:
-                  report_lines.append(f"| {asn} | - | - | Nicht erreichbar ({ripe_status}) |")
-
-          report_lines.append("")
-
-          # BGPStream / CAIDA
-          report_lines.append("### 1.3 BGPStream CAIDA – Aktuelle Hijack-Events\n")
-          bs_url = "https://bgpstream.crossroads.exchange/api/events?type=hijack&limit=25"
-          bs_data, bs_status = fetch_url(bs_url)
-
+          # ── Feed 2: BGPStream CAIDA ───────────────────────────────────────
+          print("\n[2/2] BGPStream CAIDA Hijack Events...")
+          bs_data, bs_status = fetch(
+              "https://bgpstream.crossroads.exchange/api/events?type=hijack&limit=100"
+          )
+          bs_found = 0
           if bs_data:
-              try:
-                  bs_json = json.loads(bs_data)
-                  bs_events = bs_json if isinstance(bs_json, list) else bs_json.get("events", bs_json.get("data", []))
-                  
-                  if bs_events and len(bs_events) > 0:
-                      report_lines.append(f"| Start | Sub-Typ | Präfix | Origin AS | Detect. Peers |")
-                      report_lines.append(f"|---|---|---|---|---|")
-                      for ev in bs_events[:20]:
-                          start = ev.get("start", ev.get("detected_time", "n/a"))
-                          subtype = ev.get("sub_type", ev.get("type", "n/a"))
-                          prefix = ev.get("prefix", ev.get("more_specific_prefix", "n/a"))
-                          origin = ev.get("as_path", ["n/a"])
-                          if isinstance(origin, list) and origin:
-                              origin = f"AS{origin[-1]}"
-                          peers = ev.get("nb_peers_seeing", ev.get("peers", "n/a"))
-                          report_lines.append(f"| {str(start)[:16]} | {subtype} | {prefix} | {origin} | {peers} |")
-                      report_lines.append(f"\n**Gesamt Events:** {len(bs_events)}")
+              events = bs_data if isinstance(bs_data, list) else (
+                  bs_data.get("events") or bs_data.get("data") or []
+              )
+              for ev in events:
+                  as_path = ev.get("as_path", ev.get("origin_as", []))
+                  prefix = ev.get("prefix", ev.get("more_specific_prefix", ""))
+                  if isinstance(as_path, list) and as_path:
+                      asn = str(as_path[-1])
+                  elif isinstance(as_path, str):
+                      parts = as_path.split()
+                      asn = parts[-1] if parts else ""
                   else:
-                      report_lines.append("*Keine aktuellen Hijack-Events von BGPStream.*")
-              except Exception as e:
-                  report_lines.append(f"*Parse-Fehler BGPStream: {e}*")
-                  report_lines.append(f"\n<details><summary>Raw Response</summary>\n\n```\n{str(bs_data)[:300]}\n```\n</details>")
+                      asn = str(as_path) if as_path else ""
+                  if asn and re.match(r'^\d+$', asn):
+                      key = f"AS{asn}"
+                      if key not in hijacker_asns:
+                          hijacker_asns[key] = {"sources": [], "prefixes": set()}
+                      if "bgpstream_caida" not in hijacker_asns[key]["sources"]:
+                          hijacker_asns[key]["sources"].append("bgpstream_caida")
+                      if prefix:
+                          hijacker_asns[key]["prefixes"].add(prefix)
+                      bs_found += 1
+              print(f"   → {bs_found} Events verarbeitet")
           else:
-              report_lines.append(f"*BGPStream CAIDA nicht erreichbar (Status: {bs_status}).*")
+              print(f"   → Fehler (HTTP {bs_status})")
 
-          report_lines.append("")
+          print(f"\n✅ Gesamt erkannte Hijacker-ASNs: {len(hijacker_asns)}")
 
           # ══════════════════════════════════════════════════════════════════
-          # TEIL 2: Threat-Actor ASNs aus der Blacklist analysieren
+          # SCHRITT 2: Pro ASN alle angekündigten Prefixes via RIPE holen
           # ══════════════════════════════════════════════════════════════════
 
-          report_lines.append("---")
-          report_lines.append("## 2. Threat-Actor ASN-Analyse (aus Blacklist)\n")
+          print("\n" + "=" * 60)
+          print("SCHRITT 2: Prefixes & IPs pro Hijacker-ASN auflösen")
+          print("=" * 60)
 
-          BLACKLIST_FILE = "combined_threat_blacklist_ipv4.txt"
-          
-          if not os.path.exists(BLACKLIST_FILE):
-              report_lines.append(f"*`{BLACKLIST_FILE}` nicht gefunden. Bitte zuerst den Blacklist-Workflow ausführen.*")
-          else:
-              # Top-IPs aus Blacklist laden (erste 200 für API-Abfragen)
-              with open(BLACKLIST_FILE, "r") as f:
-                  all_ips = [
-                      line.strip() for line in f
-                      if line.strip() and not line.startswith("#")
-                  ]
-              
-              print(f"Blacklist geladen: {len(all_ips)} IPs")
-              
-              # ASN-Lookup via RIPE Stat (Bulk-fähig, kein Key nötig)
-              # Wir samplen die Top-100 IPs für ASN-Analyse
-              sample_ips = all_ips[:100]
-              asn_counts = defaultdict(lambda: {"count": 0, "name": "", "prefixes": set()})
-              
-              report_lines.append(f"**Analysierte IPs:** {len(sample_ips)} (Top 100 nach Score)\n")
-              report_lines.append("*ASN-Lookup via RIPE Stat API...*\n")
+          all_compromised_cidrs = set()
+          all_compromised_ips   = set()
+          asn_details = {}
 
-              # Batch-Lookup: mehrere IPs gleichzeitig via RIPE
-              failed_lookups = 0
-              for i, ip in enumerate(sample_ips):
-                  if i > 0 and i % 10 == 0:
-                      time.sleep(1)  # Rate-Limit
-                  
-                  asn_url = f"https://stat.ripe.net/data/prefix-overview/data.json?resource={ip}"
-                  asn_data, asn_status = fetch_url(asn_url, timeout=10)
-                  
-                  if asn_data:
+          for i, (asn, info) in enumerate(hijacker_asns.items()):
+              print(f"[{i+1}/{len(hijacker_asns)}] {asn}...", end=" ", flush=True)
+
+              # Aus Feeds direkt bekannte Prefixes
+              for prefix in info["prefixes"]:
+                  if "/" in prefix and not is_private(prefix):
+                      all_compromised_cidrs.add(prefix)
+
+              # RIPE: alle vom ASN angekündigten Prefixes
+              time.sleep(0.4)
+              ripe_data, _ = fetch(
+                  f"https://stat.ripe.net/data/announced-prefixes/data.json?resource={asn}"
+              )
+
+              holder = "Unknown"
+              prefix_count = len(info["prefixes"])
+              sample_prefixes = list(info["prefixes"])[:5]
+
+              if ripe_data:
+                  d = ripe_data.get("data", {})
+                  prefixes = d.get("prefixes", [])
+                  holder = d.get("resource", asn)
+
+                  # Holder-Name
+                  asn_ov, _ = fetch(
+                      f"https://stat.ripe.net/data/as-overview/data.json?resource={asn}"
+                  )
+                  if asn_ov:
+                      holder = asn_ov.get("data", {}).get("holder", holder)
+
+                  for pfx_obj in prefixes:
+                      prefix = pfx_obj.get("prefix", "")
+                      if not prefix or is_private(prefix):
+                          continue
+                      all_compromised_cidrs.add(prefix)
+                      sample_prefixes.append(prefix)
                       try:
-                          aj = json.loads(asn_data)
-                          asns = aj.get("data", {}).get("asns", [])
-                          block = aj.get("data", {}).get("block", {})
-                          prefix = block.get("resource", ip)
-                          
-                          for asn_info in asns:
-                              asn_num = str(asn_info.get("asn", "unknown"))
-                              asn_name = asn_info.get("holder", "Unknown")
-                              asn_key = f"AS{asn_num}"
-                              asn_counts[asn_key]["count"] += 1
-                              asn_counts[asn_key]["name"] = asn_name
-                              asn_counts[asn_key]["prefixes"].add(prefix)
+                          net = ipaddress.ip_network(prefix, strict=False)
+                          if net.prefixlen >= 24:
+                              # /24: alle Hosts direkt
+                              all_compromised_ips.update(str(h) for h in net.hosts())
+                          elif net.prefixlen >= 20:
+                              # /20–/23: gesamplet (256 IPs)
+                              all_compromised_ips.update(cidr_to_ips_sample(prefix, 256))
+                          # Größere Netze nur als CIDR behalten
                       except:
-                          failed_lookups += 1
-                  else:
-                      failed_lookups += 1
+                          pass
 
-              if asn_counts:
-                  # Top ASNs nach Anzahl böser IPs sortieren
-                  sorted_asns = sorted(asn_counts.items(), key=lambda x: x[1]["count"], reverse=True)
-                  
-                  report_lines.append(f"### 2.1 Top Threat-Actor ASNs (nach Anzahl Blacklist-IPs)\n")
-                  report_lines.append(f"| Rang | ASN | Organisation | Blacklist-IPs | Präfixe |")
-                  report_lines.append(f"|---|---|---|---|---|")
-                  
-                  for rank, (asn, data) in enumerate(sorted_asns[:25], 1):
-                      prefixes_str = ", ".join(list(data["prefixes"])[:3])
-                      if len(data["prefixes"]) > 3:
-                          prefixes_str += f" (+{len(data['prefixes'])-3})"
-                      emoji = "🔴" if data["count"] >= 5 else "🟡" if data["count"] >= 2 else "⚪"
-                      report_lines.append(f"| {rank} | **{asn}** | {data['name'][:40]} | {emoji} {data['count']} | {prefixes_str} |")
-                  
-                  # Gesamt-Stats
-                  total_asns = len(asn_counts)
-                  high_risk = sum(1 for d in asn_counts.values() if d["count"] >= 5)
-                  report_lines.append(f"\n**Statistik:**")
-                  report_lines.append(f"- Einzigartige ASNs in Top-100-Blacklist: **{total_asns}**")
-                  report_lines.append(f"- Hoch-Risiko ASNs (≥5 IPs): **{high_risk}**")
-                  report_lines.append(f"- Lookup-Fehler: {failed_lookups}")
+                  prefix_count = len(prefixes)
+                  print(f"{prefix_count} Prefixes → {holder[:35]}")
               else:
-                  report_lines.append("*Keine ASN-Daten ermittelt (RIPE API nicht erreichbar).*")
+                  print("RIPE nicht erreichbar")
 
-          report_lines.append("")
+              asn_details[asn] = {
+                  "holder": holder,
+                  "sources": list(set(info["sources"])),
+                  "sample_prefixes": list(set(sample_prefixes))[:10],
+                  "prefix_count": prefix_count
+              }
 
-          # ══════════════════════════════════════════════════════════════════
-          # TEIL 3: BGP-Prefix-Hijack-Risiko für Top Threat-ASNs
-          # ══════════════════════════════════════════════════════════════════
-
-          report_lines.append("---")
-          report_lines.append("## 3. BGP-Routing-Konsistenz der Top Threat-ASNs\n")
-          report_lines.append("*Prüft ob Threat-ASNs Prefixes ankündigen die nicht in der IRR-Datenbank registriert sind (Hijack-Indikator).*\n")
-
-          if asn_counts:
-              top_threat_asns = [asn for asn, _ in sorted_asns[:10]]
-              
-              report_lines.append(f"| ASN | Organisation | IRR-Konsistenz | BGP-Prefixes | Inkonsistente Prefixes |")
-              report_lines.append(f"|---|---|---|---|---|")
-              
-              for asn in top_threat_asns:
-                  asn_num = asn.replace("AS", "")
-                  consistency_url = f"https://stat.ripe.net/data/as-routing-consistency/data.json?resource={asn}"
-                  c_data, c_status = fetch_url(consistency_url)
-                  time.sleep(0.5)
-                  
-                  if c_data:
-                      try:
-                          cj = json.loads(c_data)
-                          prefixes = cj.get("data", {}).get("prefixes", [])
-                          in_bgp = sum(1 for p in prefixes if p.get("in_bgp"))
-                          not_in_irr = sum(1 for p in prefixes if p.get("in_bgp") and not p.get("in_whois"))
-                          org_name = asn_counts.get(asn, {}).get("name", "Unknown")[:35]
-                          
-                          risk_emoji = "🔴 HOCH" if not_in_irr > 5 else "🟡 MITTEL" if not_in_irr > 0 else "✅ OK"
-                          report_lines.append(f"| **{asn}** | {org_name} | {risk_emoji} | {in_bgp} | {not_in_irr} |")
-                      except Exception as e:
-                          report_lines.append(f"| {asn} | - | Parse-Fehler | - | - |")
-                  else:
-                      report_lines.append(f"| {asn} | - | Nicht erreichbar | - | - |")
-          else:
-              report_lines.append("*Übersprungen (keine ASN-Daten aus Teil 2).*")
-
-          report_lines.append("")
+          print(f"\n✅ Gesamt CIDRs:  {len(all_compromised_cidrs)}")
+          print(f"✅ Gesamt IPs:    {len(all_compromised_ips)}")
 
           # ══════════════════════════════════════════════════════════════════
-          # ZUSAMMENFASSUNG
+          # SCHRITT 3: Bestehende Datei laden & mergen
           # ══════════════════════════════════════════════════════════════════
 
-          report_lines.append("---")
-          report_lines.append("## Zusammenfassung\n")
-          report_lines.append(f"| Komponente | Status |")
-          report_lines.append(f"|---|---|")
-          report_lines.append(f"| Cloudflare Radar Hijack-Feed | {'✅ Abgefragt' if cf_data else '❌ Fehler'} |")
-          report_lines.append(f"| BGPStream CAIDA | {'✅ Abgefragt' if bs_data else '❌ Fehler'} |")
-          report_lines.append(f"| RIPE ASN-Lookup | {'✅ Abgefragt' if asn_counts else '❌ Fehler/Übersprungen'} |")
-          report_lines.append(f"| BGP-Konsistenz-Check | ✅ Abgefragt |")
-          report_lines.append(f"\n*Nächste Ausführung: in ~6 Stunden*")
-          report_lines.append(f"\n---")
-          report_lines.append(f"*Automatisch generiert von BGP Hijack Monitor | {now_str}*")
+          print("\n" + "=" * 60)
+          print("SCHRITT 3: bgp_compromised_ips.txt aktualisieren")
+          print("=" * 60)
 
-          # Report schreiben
-          report_content = "\n".join(report_lines)
+          COMPROMISE_FILE = "bgp_compromised_ips.txt"
+          existing_entries = set()
+
+          if os.path.exists(COMPROMISE_FILE):
+              with open(COMPROMISE_FILE, "r") as f:
+                  for line in f:
+                      line = line.strip()
+                      if line and not line.startswith("#"):
+                          existing_entries.add(line)
+              print(f"Bestehende Einträge: {len(existing_entries)}")
+
+          # Neue Einträge ermitteln
+          new_ips   = all_compromised_ips   - existing_entries
+          new_cidrs = all_compromised_cidrs - existing_entries
+
+          # Alles mergen & private rausfiltern
+          final_all = (existing_entries | all_compromised_ips | all_compromised_cidrs)
+          final_all = {e for e in final_all if not is_private(e)}
+
+          cidrs = sorted(e for e in final_all if "/" in e)
+          ips   = sorted(
+              (e for e in final_all if "/" not in e),
+              key=lambda ip: tuple(int(o) for o in ip.split("."))
+          )
+
+          with open(COMPROMISE_FILE, "w") as f:
+              f.write(f"# BGP Compromised IPs & Prefixes\n")
+              f.write(f"# Automatisch generiert durch BGP Hijack Monitor\n")
+              f.write(f"# Aktualisiert: {now_str}\n")
+              f.write(f"# Hijacker-ASNs: {len(hijacker_asns)}\n")
+              f.write(f"# CIDRs: {len(cidrs)} | Einzel-IPs: {len(ips)}\n")
+              f.write(f"# Quellen: cloudflare_radar, bgpstream_caida, ripe_ris\n\n")
+              if cidrs:
+                  f.write("# ── Hijacked Prefixes (CIDRs) ──\n")
+                  f.write("\n".join(cidrs) + "\n\n")
+              if ips:
+                  f.write("# ── Aufgeloeste Einzel-IPs ──\n")
+                  f.write("\n".join(ips) + "\n")
+
+          print(f"✅ Geschrieben: {len(cidrs)} CIDRs + {len(ips)} IPs = {len(cidrs)+len(ips)} Einträge")
+          print(f"   Davon NEU:   {len(new_cidrs)} CIDRs + {len(new_ips)} IPs")
+
+          # ══════════════════════════════════════════════════════════════════
+          # SCHRITT 4: Report schreiben
+          # ══════════════════════════════════════════════════════════════════
+
+          lines = []
+          lines.append("# BGP Hijack Monitor – Report")
+          lines.append(f"**Aktualisiert:** {now_str}\n")
+          lines.append("---")
+          lines.append("## Zusammenfassung\n")
+          lines.append("| Metrik | Wert |")
+          lines.append("|---|---|")
+          lines.append(f"| BGP-Feeds | Cloudflare Radar, BGPStream CAIDA, RIPE RIS |")
+          lines.append(f"| Erkannte Hijacker-ASNs | **{len(hijacker_asns)}** |")
+          lines.append(f"| Hijacked Prefixes (CIDRs) | **{len(cidrs)}** |")
+          lines.append(f"| Aufgelöste Einzel-IPs | **{len(ips)}** |")
+          lines.append(f"| Neu hinzugekommen | **{len(new_cidrs) + len(new_ips)}** |")
+          lines.append(f"| Datei | `bgp_compromised_ips.txt` |")
+          lines.append("")
+          lines.append("---")
+          lines.append("## Erkannte Hijacker-ASNs\n")
+          lines.append("| ASN | Organisation | Quellen | Prefix-Anzahl |")
+          lines.append("|---|---|---|---|")
+          for asn, d in sorted(asn_details.items()):
+              src = ", ".join(d["sources"])
+              lines.append(f"| **{asn}** | {d['holder'][:45]} | {src} | {d['prefix_count']} |")
+
+          if new_cidrs or new_ips:
+              lines.append("")
+              lines.append("---")
+              lines.append(f"## Neu entdeckt (dieser Run)\n")
+              if new_cidrs:
+                  lines.append(f"**{len(new_cidrs)} neue CIDRs:**")
+                  for c in sorted(list(new_cidrs))[:30]:
+                      lines.append(f"- `{c}`")
+                  if len(new_cidrs) > 30:
+                      lines.append(f"- *... und {len(new_cidrs)-30} weitere*")
+
+          lines.append("")
+          lines.append("---")
+          lines.append("*`bgp_compromised_ips.txt` wird vom Blacklist-Workflow automatisch eingelesen.*")
+          lines.append(f"\n*Generiert: {now_str}*")
+
           with open("bgp_hijack_report.md", "w", encoding="utf-8") as f:
-              f.write(report_content)
-          
-          print(f"\n✅ Report geschrieben: bgp_hijack_report.md")
-          print(f"   Zeilen: {len(report_lines)}")
+              f.write("\n".join(lines))
+
+          print("✅ bgp_hijack_report.md geschrieben")
           EOF
 
-      - name: Commit BGP Hijack Report
+      - name: Commit Results
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add bgp_hijack_report.md
-          git diff --staged --quiet || git commit -m "BGP Hijack Report [$(date -u '+%Y-%m-%d %H:%M') UTC]"
+          git add bgp_compromised_ips.txt bgp_hijack_report.md
+          git diff --staged --quiet || git commit -m "BGP Monitor: Compromise-Liste aktualisiert [$(date -u '+%Y-%m-%d %H:%M') UTC]"
           git push
