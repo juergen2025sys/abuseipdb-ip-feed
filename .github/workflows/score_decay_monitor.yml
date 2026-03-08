@@ -67,13 +67,20 @@ jobs:
           score_dist = defaultdict(int)  # Score-Verteilung
 
           for ip, data in db.items():
-              score     = data.get("score", 0)
-              last_seen = data.get("last_seen", "2000-01-01")
+              # seen_db Format: {"first": "2025-01-01", "last": "2026-03-08", "hq": true}
+              # Score = Tage aktiv seit first_seen (längere Aktivität = höheres Vertrauen)
+              last_seen  = data.get("last", "2000-01-01")
+              first_seen = data.get("first", last_seen)
+              is_hq      = data.get("hq", False)
               try:
-                  last_dt = datetime.strptime(last_seen, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                  last_dt  = datetime.strptime(last_seen, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                  first_dt = datetime.strptime(first_seen, "%Y-%m-%d").replace(tzinfo=timezone.utc)
               except:
                   continue
-              days_ago = (now - last_dt).days
+              days_ago   = (now - last_dt).days
+              days_active = (last_dt - first_dt).days + 1
+              # Score: Tage aktiv + Bonus für HQ-Quellen
+              score = days_active + (20 if is_hq else 0)
 
               # Score-Verteilung
               bucket = (score // 5) * 5
