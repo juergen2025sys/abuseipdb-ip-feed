@@ -1,0 +1,197 @@
+name: Duplicate Cleaner
+
+on:
+  schedule:
+    - cron: '30 4 * * *'  # täglich 04:30 UTC (nach CVE-Mapper um 04:00)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  duplicate-cleaner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Run Duplicate Cleaner
+        run: |
+          python3 << 'EOF'
+          import os
+          import re
+          from datetime import datetime, timezone
+
+          now     = datetime.now(timezone.utc)
+          now_str = now.strftime("%Y-%m-%d %H:%M UTC")
+          IP_RE   = re.compile(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b')
+
+          # ── Dateien definieren ─────────────────────────────────────────────
+          # combined_threat_blacklist_ipv4.txt ist die "Mutter" – alle anderen
+          # Sub-Listen sollten keine Duplikate darin enthalten, weil combined
+          # sie ohnehin beim nächsten Lauf wieder einliest.
+          # Außerdem: Sub-Listen untereinander auf Überschneidungen prüfen.
+
+          FILES = {
+              "combined":  "combined_threat_blacklist_ipv4.txt",
+              "tor":       "tor_exit_nodes.txt",
+              "cve":       "cve_exploit_ips.txt",
+              "vpn":       "vpn_proxy_ranges.txt",
+              "botdet":    "bot_detector_blacklist_ipv4.txt",
+          }
+
+          def load_ips(filepath):
+              """Lädt IPs aus einer Datei, gibt (set, raw_lines) zurück."""
+              if not os.path.exists(filepath):
+                  return set(), []
+              with open(filepath) as f:
+                  raw = f.readlines()
+              ips = set()
+              for line in raw:
+                  stripped = line.strip()
+                  if stripped and not stripped.startswith("#"):
+                      # Nur reine IPs (keine CIDRs) für Duplikat-Check
+                      if re.fullmatch(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', stripped):
+                          ips.add(stripped)
+              return ips, raw
+
+          # ── Alle Dateien laden ────────────────────────────────────────────
+          data = {}
+          for key, path in FILES.items():
+              ips, raw = load_ips(path)
+              data[key] = {"path": path, "ips": ips, "raw": raw, "count": len(ips)}
+              print(f"  {path}: {len(ips)} IPs geladen" if ips else f"  {path}: nicht gefunden / leer")
+
+          combined_ips = data["combined"]["ips"]
+          print(f"\nGesamt combined: {len(combined_ips)} IPs")
+
+          # ── Analyse: Überschneidungen finden ─────────────────────────────
+          print("\n── Überschneidungsanalyse ──")
+
+          # 1) Sub-Listen vs. combined
+          overlaps_with_combined = {}
+          for key in ["tor", "cve", "vpn", "botdet"]:
+              overlap = data[key]["ips"] & combined_ips
+              overlaps_with_combined[key] = overlap
+              pct = len(overlap)/max(len(data[key]["ips"]),1)*100
+              print(f"  {FILES[key]} ∩ combined: {len(overlap)} IPs ({pct:.1f}%)")
+
+          # 2) Sub-Listen untereinander
+          sub_keys = ["tor", "cve", "vpn", "botdet"]
+          cross_overlaps = {}
+          print()
+          for i, k1 in enumerate(sub_keys):
+              for k2 in sub_keys[i+1:]:
+                  overlap = data[k1]["ips"] & data[k2]["ips"]
+                  if overlap:
+                      key = f"{k1}∩{k2}"
+                      cross_overlaps[key] = overlap
+                      print(f"  {FILES[k1]} ∩ {FILES[k2]}: {len(overlap)} gemeinsame IPs")
+
+          # ── Entscheidung: Was wird bereinigt? ─────────────────────────────
+          # Strategie:
+          #   - combined bleibt unverändert (ist die Wahrheitsquelle)
+          #   - Sub-Listen: IPs die AUCH in combined stehen, werden entfernt
+          #     → spart Speicher und verhindert doppeltes Zählen
+          #   - Sub-Listen untereinander: keine Änderung (erlaubt, da combined
+          #     sowieso dedupliziert)
+          # Ausnahme: tor + cve sind HQ-Feeds → IPs dort behalten damit
+          #   combined sie beim nächsten Lauf korrekt als HQ markiert.
+          #   Nur vpn + botdet werden aus combined-Duplikaten bereinigt.
+
+          CLEAN_FROM_COMBINED = ["vpn", "botdet"]  # tor + cve bleiben (HQ-Markierung wichtig)
+
+          total_removed = 0
+          removal_stats = {}
+
+          for key in CLEAN_FROM_COMBINED:
+              path    = FILES[key]
+              to_remove = overlaps_with_combined[key]
+              if not to_remove:
+                  removal_stats[key] = 0
+                  print(f"\n  {path}: keine Duplikate zu entfernen")
+                  continue
+
+              raw   = data[key]["raw"]
+              cleaned = []
+              removed = 0
+              for line in raw:
+                  stripped = line.strip()
+                  if stripped and not stripped.startswith("#") and stripped in to_remove:
+                      removed += 1
+                  else:
+                      cleaned.append(line)
+
+              if removed > 0:
+                  with open(path, "w") as f:
+                      f.writelines(cleaned)
+                  print(f"\n  ✅ {path}: {removed} Duplikate entfernt")
+              else:
+                  print(f"\n  {path}: 0 Duplikate (bereits sauber)")
+
+              removal_stats[key] = removed
+              total_removed += removed
+
+          # ── Report ────────────────────────────────────────────────────────
+          lines = []
+          lines.append("# Duplicate Cleaner – Report")
+          lines.append(f"**Aktualisiert:** {now_str}\n")
+          lines.append("---")
+          lines.append("## Dateigrößen\n")
+          lines.append("| Datei | IPs |")
+          lines.append("|---|---|")
+          for key, info in data.items():
+              exists = "✅" if info["ips"] else "❌"
+              lines.append(f"| {exists} `{info['path']}` | {info['count']:,} |")
+
+          lines.append("")
+          lines.append("---")
+          lines.append("## Überschneidungen mit combined_threat_blacklist\n")
+          lines.append("| Sub-Liste | Gemeinsame IPs | Anteil | Aktion |")
+          lines.append("|---|---|---|---|")
+          for key in ["tor", "cve", "vpn", "botdet"]:
+              overlap = len(overlaps_with_combined[key])
+              total   = max(data[key]["count"], 1)
+              pct     = f"{overlap/total*100:.1f}%"
+              if key in CLEAN_FROM_COMBINED:
+                  removed = removal_stats.get(key, 0)
+                  action = f"🗑️ {removed} entfernt" if removed else "✅ bereits sauber"
+              else:
+                  action = "🔒 behalten (HQ-Feed)"
+              lines.append(f"| `{FILES[key]}` | {overlap:,} | {pct} | {action} |")
+
+          if cross_overlaps:
+              lines.append("")
+              lines.append("---")
+              lines.append("## Sub-Listen Überschneidungen (nur Info)\n")
+              lines.append("| Paar | Gemeinsame IPs |")
+              lines.append("|---|---|")
+              for pair, ips in sorted(cross_overlaps.items(), key=lambda x: -len(x[1])):
+                  lines.append(f"| `{pair}` | {len(ips):,} |")
+              lines.append("\n*Sub-Listen-Duplikate werden nicht entfernt – combined dedupliziert automatisch.*")
+
+          lines.append("")
+          lines.append("---")
+          lines.append("## Zusammenfassung\n")
+          lines.append(f"| Metrik | Wert |")
+          lines.append(f"|---|---|")
+          lines.append(f"| Duplikate entfernt (vpn + botdet) | **{total_removed:,}** |")
+          lines.append(f"| Tor/CVE behalten (HQ-Markierung) | **{len(overlaps_with_combined['tor']) + len(overlaps_with_combined['cve']):,}** |")
+          lines.append(f"| Combined Blacklist (unverändert) | **{len(combined_ips):,}** |")
+
+          lines.append(f"\n---\n*Generiert: {now_str}*")
+
+          with open("duplicate_cleaner_report.md", "w") as f:
+              f.write("\n".join(lines))
+
+          print(f"\nFERTIG: {total_removed} Duplikate entfernt | Report: duplicate_cleaner_report.md")
+          EOF
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add vpn_proxy_ranges.txt bot_detector_blacklist_ipv4.txt duplicate_cleaner_report.md
+          git diff --staged --quiet || git commit -m "Duplicate Cleaner: Duplikate bereinigt [$(date -u '+%Y-%m-%d %H:%M') UTC]"
+          git push
