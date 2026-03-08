@@ -110,17 +110,37 @@ jobs:
 
           all_ips = set()
           feed_stats = []
+          # Zählt in wie vielen Feeds jede IP vorkommt
+          ip_feed_count = {}
+          ip_in_hq_feed = set()
+          feed_stats = []
+
+          HIGH_QUALITY = {"feodo_aggressive", "threatfox_ioc", "threatview_high_conf",
+                          "firehol_cybercrime", "firehol_anonymous", "binary_defense",
+                          "trcert_malware", "crowdsec_ssh", "l7_ddos", "cloudzy",
+                          "danger_bruteforce", "dshield", "cinsscore", "greensnow"}
 
           # Alle Feeds parallel laden (max 10 gleichzeitig)
           with ThreadPoolExecutor(max_workers=10) as executor:
               futures = {executor.submit(fetch_ips, name, url): name for name, url in SOURCES.items()}
               for future in as_completed(futures):
                   name, ips = future.result()
-                  all_ips.update(ips)
+                  for ip in ips:
+                      ip_feed_count[ip] = ip_feed_count.get(ip, 0) + 1
+                      if name in HIGH_QUALITY:
+                          ip_in_hq_feed.add(ip)
                   feed_stats.append((name, len(ips)))
+
+          # IPs die in 2+ Feeds ODER in mindestens 1 hochwertigen Feed auftauchen
+          all_ips = {ip for ip, count in ip_feed_count.items()
+                     if count >= 2 or ip in ip_in_hq_feed}
 
           sorted_ips = sorted(all_ips)
           feed_stats.sort(key=lambda x: -x[1])
+
+          confirmed = sum(1 for ip, c in ip_feed_count.items() if c >= 2)
+          hq_only = len(ip_in_hq_feed - {ip for ip, c in ip_feed_count.items() if c >= 2})
+          print(f"Gesamt roh: {len(ip_feed_count)} | 2+ Feeds: {confirmed} | HQ-Only: {hq_only} | Final: {len(sorted_ips)}")
 
           with open("combined_threat_blacklist_ipv4.txt", "w", encoding="utf-8") as f:
               f.write("# Combined Threat Blacklist (IPv4)\n")
