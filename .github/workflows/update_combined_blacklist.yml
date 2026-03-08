@@ -1,10 +1,8 @@
-name: Update Combined Threat Blacklist (AI IPv4)
+name: Update Combined Threat Blacklist (IPv4)
 
 on:
   schedule:
-    - cron: '0 * * * *'      # stündlich (Einlernphase: erste 3 Tage)
-    - cron: '0 */6 * * *'    # alle 6 Stunden (Normalbetrieb)
-    - cron: '20 2 * * 0'     # sonntags extra Lern-/Discovery-Lauf
+    - cron: '0 */6 * * *'   # alle 6 Stunden
   workflow_dispatch:
 
 permissions:
@@ -20,648 +18,141 @@ jobs:
         with:
           persist-credentials: true
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install scikit-learn joblib
-
-      - name: Cache state files
-        uses: actions/cache@v4
-        with:
-          path: |
-            threat_db.json
-            discovered_feeds.json
-            ip_ai_model.joblib
-          key: threat-ai-cache-${{ github.run_id }}
-          restore-keys: |
-            threat-ai-cache-
-
-      - name: Fetch, discover, learn and build IPv4 lists
+      - name: Fetch and build blacklist
         run: |
           python3 << 'EOF'
           import ipaddress
-          import json
-          import os
           import re
           import urllib.request
           from datetime import datetime, timezone
-          from urllib.parse import urljoin
+          from concurrent.futures import ThreadPoolExecutor, as_completed
 
-          from sklearn.ensemble import RandomForestClassifier
-          import joblib
+          now_stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-          DB_FILE = "threat_db.json"
-          DISCOVERED_FILE = "discovered_feeds.json"
-          MODEL_FILE = "ip_ai_model.joblib"
-          EXPIRY_DAYS = 90
-          MIN_DISCOVERED_IPS = 50
-          MAX_FEEDS_TOTAL = 500
-          USER_AGENT = "NETSHIELD-AI-Collector/1.0"
-
-          now = datetime.now(timezone.utc)
-          now_day = now.strftime("%Y-%m-%d")
-          now_stamp = now.strftime("%Y-%m-%d %H:%M UTC")
-
-          STATIC_SOURCES = {
-              # === C2 / Malware / IOC (Höchstes Gewicht) ===
-              "feodo_aggressive":         "https://feodotracker.abuse.ch/downloads/ipblocklist_aggressive.txt",
-              "feodo_standard":           "https://feodotracker.abuse.ch/downloads/ipblocklist.txt",
-              "threatfox_ioc":            "https://raw.githubusercontent.com/elliotwutingfeng/ThreatFox-IOC-IPs/refs/heads/main/ips.txt",
-              "c2_tracker":               "https://raw.githubusercontent.com/montysecurity/C2-Tracker/main/data/all.txt",
-              "threatview_high_conf":     "https://threatview.io/Downloads/IP-High-Confidence-Feed.txt",
-              "trcert_malware":           "https://raw.githubusercontent.com/cenk/trcert-malware/refs/heads/main/trcert-ips.txt",
-              "mirai_tracker":            "https://raw.githubusercontent.com/elliotwutingfeng/MiraiTracker-IPs/main/ips.txt",
-              "openphish":                "https://raw.githubusercontent.com/elliotwutingfeng/OpenPhish-IPs/main/ips.txt",
-              "urlhaus_ips":              "https://urlhaus.abuse.ch/downloads/text/",
-              "bazaar_ioc":               "https://bazaar.abuse.ch/export/txt/ips/recent/",
-              "botvrij_ioc":              "https://www.botvrij.eu/data/ioclist.ip-dst.txt",
-              "abuse_sslbl":              "https://sslbl.abuse.ch/blacklist/sslipblacklist_aggressive.csv",
-              "maltrail_malware":         "https://raw.githubusercontent.com/stamparm/maltrail/master/trails/static/malware/list.txt",
-              "maltrail_c2":              "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/5.txt",
-              "ipsum_lvl3":               "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/3.txt",
-              "ipsum_lvl4":               "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/4.txt",
-              "ipsum_lvl6":               "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/6.txt",
-              "ipsum_lvl7":               "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/7.txt",
-              # === Emerging Threats / Firewall Rules ===
-              "et_block_ips":             "https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt",
-              "et_compromised":           "https://rules.emergingthreats.net/blockrules/compromised-ips.txt",
-              "binary_defense":           "https://binarydefense.com/banlist.txt",
-              "spamhaus_drop":            "https://www.spamhaus.org/drop/drop.txt",
-              "spamhaus_edrop":           "https://www.spamhaus.org/drop/edrop.txt",
-              # === Firehol Sets ===
-              "firehol_abusers_1d":       "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_abusers_1d.netset",
-              "firehol_abusers_30d":      "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_abusers_30d.netset",
-              "firehol_cybercrime":       "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/cybercrime.ipset",
-              "firehol_level1":           "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset",
-              "firehol_level2":           "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level2.netset",
-              "firehol_level3":           "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level3.netset",
-              "firehol_ddos":             "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_ddos.netset",
-              "firehol_anonymous":        "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_anonymous.netset",
-              "firehol_webserver":        "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_webserver.netset",
-              # === Blocklist.de ===
-              "blocklist_de_all":         "https://www.blocklist.de/downloads/export-ips_all.txt",
-              "blocklist_de_strong":      "https://lists.blocklist.de/lists/strongips.txt",
-              "blocklist_de_ssh":         "https://lists.blocklist.de/lists/ssh.txt",
-              "blocklist_de_mail":        "https://lists.blocklist.de/lists/mail.txt",
-              "blocklist_de_apache":      "https://lists.blocklist.de/lists/apache.txt",
-              "blocklist_de_ftp":         "https://lists.blocklist.de/lists/ftp.txt",
-              "blocklist_de_imap":        "https://lists.blocklist.de/lists/imap.txt",
-              "blocklist_de_bruteforce":  "https://lists.blocklist.de/lists/bruteforce.txt",
-              # === DShield / SANS ===
-              "dshield":                  "https://www.dshield.org/block.txt",
-              "dshield_top20":            "https://isc.sans.edu/api/sources/attacks/20/?text",
-              # === Scanner / Brute-Force ===
-              "cinsscore":                "https://cinsscore.com/list/ci-badguys.txt",
-              "cinsarmy":                 "https://cinsarmy.com/list/ci-badguys.txt",
-              "greensnow":                "https://blocklist.greensnow.co/greensnow.txt",
-              "danger_bruteforce":        "https://danger.rulez.sk/projects/bruteforceblocker/blist.php",
-              "shadowwhisperer_scanners": "https://raw.githubusercontent.com/ShadowWhisperer/IPs/master/Other/Scanners",
-              "shadowwhisperer_bf_high":  "https://raw.githubusercontent.com/ShadowWhisperer/IPs/master/BruteForce/High",
-              "shadowwhisperer_bf_extreme":"https://raw.githubusercontent.com/ShadowWhisperer/IPs/master/BruteForce/Extreme",
-              "shadowwhisperer_malware":  "https://raw.githubusercontent.com/ShadowWhisperer/IPs/master/Malware/Malware",
-              "shadowwhisperer_ddos":     "https://raw.githubusercontent.com/ShadowWhisperer/IPs/master/DDoS/DDoS",
-              "crowdsec_ssh_bf":          "https://raw.githubusercontent.com/Y3ll0w/CrowdSec-CAPI-Decisions/refs/heads/main/ssh-bf.json.txt",
-              "interserver":              "https://sigs.interserver.net/ip.txt",
-              "sefinek":                  "https://raw.githubusercontent.com/sefinek/Malicious-IP-Addresses/main/lists/main.txt",
-              "binaryedge_scanner":       "https://raw.githubusercontent.com/elliotwutingfeng/BinaryEdge-Top-Malicious-IPs/main/ips.txt",
-              "charles_haley_ssh":        "https://raw.githubusercontent.com/charles-haley/public-threatintel/main/ssh-bruteforce.txt",
-              "abuse_recommended":        "https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/main/abuseipdb-s100-30d.ipv4",
-              "abuse_90d":                "https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/main/abuseipdb-s100-90d.ipv4",
-              "ninja_scanner":            "https://raw.githubusercontent.com/NiNjA-BoT/Block-List/master/bruteforce.txt",
-              "stopforumspam_toxic":      "https://www.stopforumspam.com/downloads/toxic_ip_cidr.txt",
-              "dataplane_ssh":            "https://dataplane.org/sshpwauth.txt",
-              "dataplane_telnet":         "https://dataplane.org/telnetlogin.txt",
-              "dataplane_sipinvite":       "https://dataplane.org/sipinvitation.txt",
-              "dataplane_proto_tcp":      "https://dataplane.org/proto41.txt",
-              "bruteforceblocker":        "https://www.openbl.org/lists/base.txt",
-              "turris_greylist":          "https://www.turris.cz/greylist-data/greylist-latest.csv",
-              "rescure":                  "https://rescure.me/rescure_blacklist.txt",
-              "ipsum_master":             "https://raw.githubusercontent.com/stamparm/ipsum/master/ipsum.txt",
-              # === TOR / VPN / Proxy ===
-              "dan_tor":                  "https://www.dan.me.uk/torlist/?exit",
-              "tor_bulk_exit":            "https://check.torproject.org/torbulkexitlist",
-              "proxy_spy":                "https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/http.txt",
-              # === NETSHIELD eigene Listen ===
-              "netshield_blacklist":      "https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/refs/heads/main/blacklist_confidence40_ipv4.txt",
-              "netshield_botdetector":    "https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/refs/heads/main/bot_detector_blacklist_ipv4.txt",
-              "netshield_tor_exits":      "https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/refs/heads/main/tor_exit_nodes.txt",
-              "netshield_cve_exploits":   "https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/refs/heads/main/cve_exploit_ips.txt",
+          SOURCES = {
+              "cinsscore":            "https://cinsscore.com/list/ci-badguys.txt",
+              "greensnow":            "https://blocklist.greensnow.co/greensnow.txt",
+              "feodo_aggressive":     "https://feodotracker.abuse.ch/downloads/ipblocklist_aggressive.txt",
+              "threatfox_ioc":        "https://raw.githubusercontent.com/elliotwutingfeng/ThreatFox-IOC-IPs/refs/heads/main/ips.txt",
+              "l7_ddos":              "https://raw.githubusercontent.com/Tizian-Maxime-Weigt/L7-HTTP-DDoS-Flood-IP-Signature-IP-List/refs/heads/main/ddos-signatures.txt",
+              "binary_defense":       "https://binarydefense.com/banlist.txt",
+              "data_shield":          "https://raw.githubusercontent.com/duggytuxy/Data-Shield_IPv4_Blocklist/refs/heads/main/prod_data-shield_ipv4_blocklist.txt",
+              "interserver":          "https://sigs.interserver.net/ip.txt",
+              "crowdsec_ssh":         "https://raw.githubusercontent.com/Y3ll0w/CrowdSec-CAPI-Decisions/refs/heads/main/ssh-bf.json.txt",
+              "trcert_malware":       "https://raw.githubusercontent.com/cenk/trcert-malware/refs/heads/main/trcert-ips.txt",
+              "danger_bruteforce":    "https://danger.rulez.sk/projects/bruteforceblocker/blist.php",
+              "threatview_high_conf": "https://threatview.io/Downloads/IP-High-Confidence-Feed.txt",
+              "florent_banned":       "https://raw.githubusercontent.com/florentvinai/bad-ips-on-my-vps/refs/heads/main/banned_ips.txt",
+              "firehol_cybercrime":   "https://raw.githubusercontent.com/firehol/blocklist-ipsets/refs/heads/master/cybercrime.ipset",
+              "firehol_anonymous":    "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_anonymous.netset",
+              "dshield":              "https://www.dshield.org/block.txt",
+              "cloudzy":              "https://raw.githubusercontent.com/CriticalPathSecurity/Public-Intelligence-Feeds/refs/heads/master/cloudzy.txt",
+              "bbcan177":             "https://gist.githubusercontent.com/BBcan177/d7105c242f17f4498f81/raw",
+              "kevinmarx":            "https://kevinmarx.org/malicious-ip-list.txt",
+              "honeypot_blocklist":   "https://raw.githubusercontent.com/yuexuan521/honeypot-blocklist/refs/heads/main/ip_list.txt",
+              "edanwong":             "https://raw.githubusercontent.com/EdanWong/ip_list/refs/heads/main/my_ips.txt",
+              "nixbear_malicious":    "https://raw.githubusercontent.com/nixbear/malicious_ips/refs/heads/main/malicious_ips.txt",
+              "ufukart_blacklist":    "https://raw.githubusercontent.com/ufukart/Blacklist/main/blacklist.txt",
+              "f3csystems":           "https://raw.githubusercontent.com/f3csystems/BlockList_IP/refs/heads/main/blacklist.txt",
+              "fortigate_azure":      "https://raw.githubusercontent.com/IT3ngineer/FortigateBlockList/refs/heads/main/AzureBlockListIPs.txt",
+              "romainmarcoux_aa":     "https://raw.githubusercontent.com/romainmarcoux/malicious-ip/main/full-300k-aa.txt",
+              "romainmarcoux_ab":     "https://raw.githubusercontent.com/romainmarcoux/malicious-ip/main/full-300k-ab.txt",
+              "romainmarcoux_ac":     "https://raw.githubusercontent.com/romainmarcoux/malicious-ip/main/full-300k-ac.txt",
+              "4ip_high_security":    "https://raw.githubusercontent.com/4IP-Solutions/threat-feeds/refs/heads/main/blocklist-incoming-ip-high-security.txt",
+              "ultimate_hosts":       "https://raw.githubusercontent.com/Ultimate-Hosts-Blacklist/Ultimate.Hosts.Blacklist/refs/heads/master/ips/ips0.list",
+              "amitambekar_full":     "https://raw.githubusercontent.com/amitambekar510/Malicious-IP-Threat-List/refs/heads/main/Malicious-IP-Threat-List.txt",
+              "amitambekar_aa":       "https://raw.githubusercontent.com/amitambekar510/Malicious-IP-Threat-List/main/Malicious-IP-Threat-List_aa",
+              "cyna_malicious":       "https://raw.githubusercontent.com/cybersecurity-cyna/Malicious_IP/refs/heads/main/ip-list.txt",
+              "black_mirror":         "https://github.com/T145/black-mirror/releases/download/latest/BLOCK_IPV4.txt",
           }
-
-          DISCOVERY_PAGES = [
-              "https://github.com/firehol/blocklist-ipsets/tree/master",
-              "https://github.com/ShadowWhisperer/IPs/tree/master",
-              "https://github.com/sefinek/Malicious-IP-Addresses/tree/main/lists",
-              "https://github.com/juergen2025sys/NETSHIELD/tree/main",
-              "https://github.com/montysecurity/C2-Tracker/tree/main/data",
-              "https://github.com/cenk/trcert-malware/tree/main",
-          ]
-
-          FEED_HINTS = ("ip", "ips", "block", "blacklist", "ban", "threat", "ioc", "malware", "c2", "bot", "scanner", "bruteforce", "ddos")
-          FEED_SUFFIXES = (".txt", ".netset", ".ipset", ".list", ".blocklist", ".conf")
-
-          IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
-          URL_RE = re.compile(r'https?://[^"\s<>]+')
-          GH_BLOB_RE = re.compile(r'https://github\.com/([^/]+)/([^/]+)/blob/([^"\'#?]+)')
-          HREF_RE = re.compile(r'href="([^"]+)"')
 
           DNS_WHITELIST = {
               "8.8.8.8", "8.8.4.4", "1.1.1.1", "1.0.0.1",
-              "208.67.222.222", "208.67.220.220", "9.9.9.9", "149.112.112.112",
-              "94.140.14.14", "94.140.15.15", "4.2.2.1", "4.2.2.2",
-              "8.26.56.26", "8.20.247.20", "156.154.70.1", "156.154.71.1",
-              "129.6.15.28", "129.6.15.29", "127.0.0.1", "0.0.0.0",
+              "208.67.222.222", "208.67.220.220", "9.9.9.9",
+              "149.112.112.112", "94.140.14.14", "94.140.15.15",
           }
 
-          _WHITELIST_CIDRS = [
-              "52.0.0.0/8", "54.0.0.0/8", "99.0.0.0/8",
-              "100.24.0.0/13", "100.64.0.0/10",
-              "104.16.0.0/13", "104.24.0.0/14",
-              "172.64.0.0/13", "162.158.0.0/15",
-              "23.0.0.0/12", "23.32.0.0/11",
-              "151.101.0.0/16", "142.250.0.0/15", "172.217.0.0/16",
-          ]
-          _WHITELIST_NETS = [ipaddress.ip_network(c) for c in _WHITELIST_CIDRS]
+          IPV4_RE = re.compile(r"\b((?:\d{1,3}\.){3}\d{1,3})\b")
 
-          def fetch_text(url, timeout=20):
-              req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-              with urllib.request.urlopen(req, timeout=timeout) as r:
-                  return r.read().decode("utf-8", errors="ignore")
-
-          def is_valid_ipv4(ip):
+          def is_valid_public_ipv4(ip):
               try:
                   obj = ipaddress.ip_address(ip)
-                  return obj.version == 4
+                  return (
+                      obj.version == 4 and
+                      not obj.is_private and
+                      not obj.is_loopback and
+                      not obj.is_multicast and
+                      not obj.is_unspecified and
+                      not obj.is_reserved and
+                      not obj.is_link_local
+                  )
               except Exception:
                   return False
 
-          def is_private_or_reserved(ip):
+          def fetch_ips(name, url):
               try:
-                  obj = ipaddress.ip_address(ip)
-                  return obj.is_private or obj.is_loopback or obj.is_multicast or obj.is_unspecified or obj.is_reserved or obj.is_link_local
-              except Exception:
-                  return True
-
-          def is_gaming_launcher(ip):
-              try:
-                  addr = ipaddress.ip_address(ip)
-                  return any(addr in net for net in _WHITELIST_NETS)
-              except:
-                  return False
-
-          def extract_ipv4s(text):
-              found = set()
-              for ip in IPV4_RE.findall(text):
-                  if is_valid_ipv4(ip) and not is_private_or_reserved(ip):
-                      found.add(ip)
-              return found
-
-          def normalize_github_url(url):
-              m = GH_BLOB_RE.match(url)
-              if m:
-                  owner, repo, path = m.groups()
-                  return f"https://raw.githubusercontent.com/{owner}/{repo}/{path}"
-              return url
-
-          def looks_like_feed_url(url):
-              lower = url.lower()
-              return lower.startswith("https://") and any(h in lower for h in FEED_HINTS) and (lower.endswith(FEED_SUFFIXES) or "raw.githubusercontent.com" in lower or "download" in lower)
-
-          def keyword_weight(name_or_url):
-              s = name_or_url.lower()
-              score = 1
-              if any(k in s for k in ("feodo", "threatfox", "c2", "ioc", "malware", "bazaar", "sslbl", "urlhaus", "botvrij", "mirai")):
-                  score += 5
-              if any(k in s for k in ("drop", "botnet", "aggressive", "compromised", "ipsum", "maltrail", "openphish")):
-                  score += 4
-              if any(k in s for k in ("scanner", "bruteforce", "ssh", "ddos", "abusers", "dataplane", "crowdsec", "shadowwhisperer")):
-                  score += 2
-              if any(k in s for k in ("abuseipdb", "blocklist", "badguys", "rescure", "turris", "stopforumspam", "binaryedge")):
-                  score += 1
-              return min(score, 10)
-
-          def source_kind(name_or_url):
-              s = name_or_url.lower()
-              if any(k in s for k in ("c2", "ioc", "feodo", "threatfox", "malware", "compromised", "bazaar", "sslbl", "urlhaus", "botvrij", "mirai", "openphish", "maltrail", "ipsum")):
-                  return "malware"
-              if any(k in s for k in ("ddos", "scanner", "bruteforce", "ssh", "abusers", "dataplane", "crowdsec", "shadowwhisperer", "turris")):
-                  return "scanner"
-              return "generic"
-
-          cloud_networks = []
-
-          def add_networks_from_iter(prefixes, label):
-              added = 0
-              for prefix in prefixes:
-                  try:
-                      net = ipaddress.ip_network(prefix, strict=False)
-                      if net.version == 4:
-                          cloud_networks.append(net)
-                          added += 1
-                  except Exception:
-                      pass
-              print(f"Cloud/DC geladen: {label} -> {added} IPv4-Netze")
-
-          try:
-              data = json.loads(fetch_text("https://ip-ranges.amazonaws.com/ip-ranges.json"))
-              add_networks_from_iter([x["ip_prefix"] for x in data.get("prefixes", []) if "ip_prefix" in x], "AWS")
-          except Exception as e:
-              print(f"AWS Bereichs-Import fehlgeschlagen: {e}")
-
-          try:
-              add_networks_from_iter(fetch_text("https://www.cloudflare.com/ips-v4").splitlines(), "Cloudflare")
-          except Exception as e:
-              print(f"Cloudflare Bereichs-Import fehlgeschlagen: {e}")
-
-          for label, url in (
-              ("GCP", "https://www.gstatic.com/ipranges/cloud.json"),
-              ("Google", "https://www.gstatic.com/ipranges/goog.json"),
-          ):
-              try:
-                  data = json.loads(fetch_text(url))
-                  prefixes = [x["ipv4Prefix"] for x in data.get("prefixes", []) if "ipv4Prefix" in x]
-                  add_networks_from_iter(prefixes, label)
-              except Exception as e:
-                  print(f"{label} Bereichs-Import fehlgeschlagen: {e}")
-
-          try:
-              data = json.loads(fetch_text("https://api.fastly.com/public-ip-list"))
-              add_networks_from_iter(data.get("addresses", []), "Fastly")
-          except Exception as e:
-              print(f"Fastly Bereichs-Import fehlgeschlagen: {e}")
-
-          try:
-              page = fetch_text("https://www.microsoft.com/en-us/download/confirmation.aspx?id=56519")
-              m = re.search(r'https://download\.microsoft\.com/download/[^"\']+ServiceTags_Public_[^"\']+\.json', page)
-              if m:
-                  data = json.loads(fetch_text(m.group(0), timeout=40))
-                  prefixes = []
-                  for value in data.get("values", []):
-                      for p in value.get("properties", {}).get("addressPrefixes", []):
-                          if ":" not in p:
-                              prefixes.append(p)
-                  add_networks_from_iter(prefixes, "Azure")
-          except Exception as e:
-              print(f"Azure Bereichs-Import fehlgeschlagen: {e}")
-
-          def is_cloud_or_dc_ip(ip):
-              try:
-                  obj = ipaddress.ip_address(ip)
-                  return any(obj in net for net in cloud_networks)
-              except Exception:
-                  return False
-
-          discovered_state = {}
-          if os.path.exists(DISCOVERED_FILE):
-              try:
-                  with open(DISCOVERED_FILE, "r", encoding="utf-8") as f:
-                      discovered_state = json.load(f)
-              except Exception:
-                  discovered_state = {}
-
-          db = {}
-          db_first_run_date = None
-          if os.path.exists(DB_FILE):
-              try:
-                  with open(DB_FILE, "r", encoding="utf-8") as f:
-                      raw = json.load(f)
-                  # Metadaten-Eintrag für Einlernphase
-                  db_first_run_date = raw.pop("__first_run__", None)
-                  db = raw
-                  print(f"Threat-DB geladen: {len(db)} IPs")
-              except Exception:
-                  db = {}
-          else:
-              print("Keine Threat-DB gefunden, starte neu.")
-
-          if db_first_run_date is None:
-              db_first_run_date = now_day
-          first_run_dt = datetime.strptime(db_first_run_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-          db_age_days = (now - first_run_dt).days
-          LEARNING_MODE = db_age_days < 3
-          # Im Einlernmodus: Scores werden mit Faktor 3 multipliziert damit
-          # IPs die in vielen Feeds stehen sofort die Blacklist-Schwelle erreichen
-          SCORE_MULTIPLIER = 3 if LEARNING_MODE else 1
-          print(f"DB-Alter: {db_age_days} Tage | Einlernmodus: {LEARNING_MODE} | Score-Multiplikator: {SCORE_MULTIPLIER}x")
-
-          discovered_urls = set()
-          for page_url in DISCOVERY_PAGES:
-              try:
-                  html = fetch_text(page_url)
-                  all_urls = set(URL_RE.findall(html))
-                  for href in HREF_RE.findall(html):
-                      full = urljoin(page_url, href)
-                      all_urls.add(full)
-                  for url in all_urls:
-                      url = normalize_github_url(url)
-                      if "github.com/" in url and "/tree/" in url:
+                  req = urllib.request.Request(url, headers={"User-Agent": "NETSHIELD/2.0"})
+                  # Redirects folgen (wichtig für GitHub Release-Links)
+                  opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler())
+                  with opener.open(req, timeout=25) as r:
+                      content = r.read().decode("utf-8", errors="ignore")
+                  found = set()
+                  for line in content.splitlines():
+                      line = line.strip()
+                      if not line or line.startswith("#") or line.startswith(";"):
                           continue
-                      if looks_like_feed_url(url):
-                          discovered_urls.add(url)
+                      for m in IPV4_RE.finditer(line):
+                          ip = m.group(1)
+                          if ip not in DNS_WHITELIST and is_valid_public_ipv4(ip):
+                              found.add(ip)
+                  print(f"OK  {name}: {len(found)} IPs")
+                  return name, found
               except Exception as e:
-                  print(f"Discovery fehlgeschlagen: {page_url} -> {e}")
+                  print(f"ERR {name}: {e}")
+                  return name, set()
 
-          all_sources = dict(STATIC_SOURCES)
-          for url in sorted(discovered_urls):
-              key = "auto_" + re.sub(r"[^a-z0-9]+", "_", url.lower()).strip("_")[:80]
-              all_sources[key] = url
-
-          for key, meta in discovered_state.items():
-              url = meta.get("url")
-              if url and len(all_sources) < MAX_FEEDS_TOTAL:
-                  all_sources.setdefault(key, url)
-
-          all_sources = dict(list(all_sources.items())[:MAX_FEEDS_TOTAL])
-          print(f"Feeds gesamt: {len(all_sources)} (inkl. Discovery)")
-
-          current_seen = set()
-          good_discovered = {}
+          all_ips = set()
           feed_stats = []
 
-          for source_name, source_url in all_sources.items():
-              try:
-                  content = fetch_text(source_url, timeout=25)
-                  ips = extract_ipv4s(content)
-                  if len(ips) < 10:
-                      raise ValueError(f"zu wenige IPv4s ({len(ips)})")
+          # Alle Feeds parallel laden (max 10 gleichzeitig)
+          with ThreadPoolExecutor(max_workers=10) as executor:
+              futures = {executor.submit(fetch_ips, name, url): name for name, url in SOURCES.items()}
+              for future in as_completed(futures):
+                  name, ips = future.result()
+                  all_ips.update(ips)
+                  feed_stats.append((name, len(ips)))
 
-                  weight = keyword_weight(source_name + " " + source_url)
-                  kind = source_kind(source_name + " " + source_url)
-
-                  for ip in ips:
-                      if ip in DNS_WHITELIST or is_gaming_launcher(ip):
-                          continue
-
-                      item = db.get(ip, {
-                          "score": 0,
-                          "first_seen": now_day,
-                          "last_seen": now_day,
-                          "feed_count": 0,
-                          "strong_feeds": 0,
-                          "malware_feeds": 0,
-                          "scanner_feeds": 0,
-                          "generic_feeds": 0,
-                          "cloud_hits": 0,
-                          "last_probability": 0.0,
-                      })
-
-                      item["last_seen"] = now_day
-                      item["score"] += weight * SCORE_MULTIPLIER
-                      item["feed_count"] += 1
-                      if weight >= 7:
-                          item["strong_feeds"] += 1
-                      if kind == "malware":
-                          item["malware_feeds"] += 1
-                      elif kind == "scanner":
-                          item["scanner_feeds"] += 1
-                      else:
-                          item["generic_feeds"] += 1
-
-                      if is_cloud_or_dc_ip(ip):
-                          item["cloud_hits"] = 1
-
-                      db[ip] = item
-                      current_seen.add(ip)
-
-                  feed_stats.append((source_name, len(ips), weight, kind))
-                  print(f"OK: {source_name} -> {len(ips)} IPv4 | Gewicht {weight} | Typ {kind}")
-
-                  if source_name.startswith("auto_") and len(ips) >= MIN_DISCOVERED_IPS:
-                      good_discovered[source_name] = {
-                          "url": source_url,
-                          "last_good": now_day,
-                          "last_count": len(ips),
-                      }
-              except Exception as e:
-                  print(f"FEHLER: {source_name} -> {e}")
-
-          for key, val in good_discovered.items():
-              discovered_state[key] = val
-
-          stale_keys = []
-          for key, meta in discovered_state.items():
-              try:
-                  last = datetime.strptime(meta.get("last_good", "1970-01-01"), "%Y-%m-%d").replace(tzinfo=timezone.utc)
-                  if (now - last).days > 45:
-                      stale_keys.append(key)
-              except Exception:
-                  stale_keys.append(key)
-          for key in stale_keys:
-              discovered_state.pop(key, None)
-
-          with open(DISCOVERED_FILE, "w", encoding="utf-8") as f:
-              json.dump(discovered_state, f, separators=(",", ":"), ensure_ascii=False)
-
-          expired = []
-          for ip in list(db.keys()):
-              try:
-                  last = datetime.strptime(db[ip]["last_seen"], "%Y-%m-%d").replace(tzinfo=timezone.utc)
-                  if (now - last).days > EXPIRY_DAYS:
-                      expired.append(ip)
-                      del db[ip]
-              except Exception:
-                  expired.append(ip)
-                  del db[ip]
-          print(f"Abgelaufen & entfernt: {len(expired)} IPs")
-
-          def feature_vector(ip, item):
-              first_seen = datetime.strptime(item["first_seen"], "%Y-%m-%d")
-              last_seen = datetime.strptime(item["last_seen"], "%Y-%m-%d")
-              age_days = max((last_seen - first_seen).days, 0)
-              days_since_seen = max((now.replace(tzinfo=None) - last_seen).days, 0)
-              return [
-                  item.get("score", 0),
-                  item.get("feed_count", 0),
-                  item.get("strong_feeds", 0),
-                  item.get("malware_feeds", 0),
-                  item.get("scanner_feeds", 0),
-                  item.get("generic_feeds", 0),
-                  item.get("cloud_hits", 0),
-                  age_days,
-                  days_since_seen,
-              ]
-
-          X = []
-          y = []
-          for ip, item in db.items():
-              negative = (
-                  item.get("cloud_hits", 0) == 1 or
-                  ip in DNS_WHITELIST or
-                  is_gaming_launcher(ip) or
-                  (item.get("score", 0) <= 2 and item.get("feed_count", 0) <= 1)
-              )
-              positive = (
-                  item.get("cloud_hits", 0) == 0 and
-                  item.get("score", 0) >= 12 and
-                  item.get("feed_count", 0) >= 2 and
-                  (item.get("malware_feeds", 0) >= 1 or item.get("strong_feeds", 0) >= 2)
-              )
-
-              if positive:
-                  X.append(feature_vector(ip, item))
-                  y.append(1)
-              elif negative:
-                  X.append(feature_vector(ip, item))
-                  y.append(0)
-
-          model = None
-          positives = sum(y)
-          negatives = len(y) - positives
-
-          if positives >= 50 and negatives >= 50:
-              model = RandomForestClassifier(
-                  n_estimators=250,
-                  max_depth=12,
-                  min_samples_leaf=2,
-                  random_state=42,
-                  n_jobs=-1
-              )
-              model.fit(X, y)
-              joblib.dump(model, MODEL_FILE)
-              print(f"KI-Modell neu trainiert | positive={positives} negative={negatives}")
-          elif os.path.exists(MODEL_FILE):
-              model = joblib.load(MODEL_FILE)
-              print("Vorhandenes KI-Modell geladen")
-          else:
-              print("Noch nicht genug Trainingsdaten für ein KI-Modell")
-
-          def fallback_probability(item):
-              s = item.get("score", 0)
-              fc = item.get("feed_count", 0)
-              strong = item.get("strong_feeds", 0)
-              mal = item.get("malware_feeds", 0)
-              cloud = item.get("cloud_hits", 0)
-              # Gewichtung erhöht damit fallback auch ohne KI-Modell realistische Werte liefert
-              raw = (s * 0.08) + (fc * 0.10) + (strong * 0.18) + (mal * 0.18) - (cloud * 0.55)
-              raw = max(0, min(raw, 0.99))
-              return raw
-
-          blacklist = []
-          watchlist = []
-          datacenter_watchlist = []
-
-          for ip, item in db.items():
-              if model:
-                  prob = float(model.predict_proba([feature_vector(ip, item)])[0][1])
-              else:
-                  prob = float(fallback_probability(item))
-
-              item["last_probability"] = round(prob, 6)
-              db[ip] = item
-              cloud = item.get("cloud_hits", 0) == 1
-
-              if cloud:
-                  if (
-                      prob >= 0.92 and
-                      item.get("score", 0) >= 14 and
-                      item.get("feed_count", 0) >= 3 and
-                      (item.get("malware_feeds", 0) >= 1 or item.get("strong_feeds", 0) >= 2)
-                  ):
-                      blacklist.append(ip)
-                  elif prob >= 0.75 or item.get("score", 0) >= 14:
-                      datacenter_watchlist.append(ip)
-                  continue
-
-              # Primäre Bedingung: KI-Wahrscheinlichkeit + Mindest-Score + 2 Feeds
-              # Sekundäre Bedingung: sehr hoher Score in starken Feeds (auch ohne KI-Modell)
-              # Kaltstart-Bedingung: 3+ Feeds oder malware_feed + score >= 8
-              if (
-                  prob >= 0.75 and
-                  item.get("score", 0) >= 6 and
-                  item.get("feed_count", 0) >= 2
-              ) or (
-                  item.get("score", 0) >= 16 and
-                  item.get("strong_feeds", 0) >= 1
-              ) or (
-                  item.get("feed_count", 0) >= 3 and
-                  item.get("score", 0) >= 8 and
-                  item.get("cloud_hits", 0) == 0
-              ) or (
-                  item.get("malware_feeds", 0) >= 1 and
-                  item.get("score", 0) >= 6 and
-                  item.get("cloud_hits", 0) == 0
-              ):
-                  blacklist.append(ip)
-              elif prob >= 0.45 or item.get("score", 0) >= 5:
-                  watchlist.append(ip)
-
-          blacklist = sorted(set(blacklist), key=lambda ip: (-db[ip]["last_probability"], -db[ip]["score"], ip))
-          watchlist = sorted(set(watchlist) - set(blacklist), key=lambda ip: (-db[ip]["last_probability"], -db[ip]["score"], ip))
-          datacenter_watchlist = sorted(set(datacenter_watchlist), key=lambda ip: (-db[ip]["last_probability"], -db[ip]["score"], ip))
-
-          with open(DB_FILE, "w", encoding="utf-8") as f:
-              db["__first_run__"] = db_first_run_date
-              json.dump(db, f, separators=(",", ":"), ensure_ascii=False)
-              db.pop("__first_run__", None)  # aus dem Live-Dict wieder entfernen
+          sorted_ips = sorted(all_ips)
+          feed_stats.sort(key=lambda x: -x[1])
 
           with open("combined_threat_blacklist_ipv4.txt", "w", encoding="utf-8") as f:
               f.write("# Combined Threat Blacklist (IPv4)\n")
               f.write(f"# Aktualisiert: {now_stamp}\n")
-              f.write(f"# Feeds gesamt: {len(all_sources)}\n")
-              f.write(f"# Discovery-Feeds aktiv: {len(discovered_state)}\n")
-              f.write(f"# Cloud/DC-IPv4-Netze geladen: {len(cloud_networks)}\n")
-              f.write(f"# Blacklist IPv4s: {len(blacklist)}\n\n")
-              f.write("\n".join(blacklist) + ("\n" if blacklist else ""))
-
-          with open("watchlist_confidence20to39_ipv4.txt", "w", encoding="utf-8") as f:
-              f.write("# Watchlist (IPv4)\n")
-              f.write(f"# Aktualisiert: {now_stamp}\n")
-              f.write(f"# Watchlist IPv4s: {len(watchlist)}\n\n")
-              f.write("\n".join(watchlist) + ("\n" if watchlist else ""))
-
-          with open("datacenter_suspect_watchlist_ipv4.txt", "w", encoding="utf-8") as f:
-              f.write("# Datacenter/Cloud Suspect Watchlist (IPv4)\n")
-              f.write(f"# Aktualisiert: {now_stamp}\n")
-              f.write("# Nicht fuer LAN-Auto-Block vorgesehen\n")
-              f.write(f"# Eintraege: {len(datacenter_watchlist)}\n\n")
-              f.write("\n".join(datacenter_watchlist) + ("\n" if datacenter_watchlist else ""))
-
-          with open("auto_discovered_feeds.json", "w", encoding="utf-8") as f:
-              json.dump(discovered_state, f, indent=2, ensure_ascii=False)
+              f.write(f"# Feeds: {len(SOURCES)}\n")
+              f.write(f"# Eintraege: {len(sorted_ips)}\n\n")
+              f.write("\n".join(sorted_ips) + "\n")
 
           with open("combined_threat_blacklist_report.md", "w", encoding="utf-8") as f:
               f.write("# Combined Threat Blacklist Report\n\n")
               f.write(f"- Aktualisiert: **{now_stamp}**\n")
-              f.write(f"- Feeds gesamt: **{len(all_sources)}**\n")
-              f.write(f"- Discovery-Feeds aktiv: **{len(discovered_state)}**\n")
-              f.write(f"- Blacklist: **{len(blacklist)}** IPv4\n")
-              f.write(f"- Watchlist: **{len(watchlist)}** IPv4\n")
-              f.write(f"- Datacenter/Cloud-Watchlist: **{len(datacenter_watchlist)}** IPv4\n")
-              f.write(f"- Abgelaufen entfernt: **{len(expired)}**\n\n")
-              f.write("## Top Feed-Statistik\n\n")
-              f.write("| Feed | IPv4 | Gewicht | Typ |\n")
-              f.write("|---|---:|---:|---|\n")
-              for name, count, weight, kind in sorted(feed_stats, key=lambda x: (-x[1], -x[2], x[0]))[:25]:
-                  f.write(f"| `{name}` | {count} | {weight} | {kind} |\n")
+              f.write(f"- Feeds gesamt: **{len(SOURCES)}**\n")
+              f.write(f"- Eintraege gesamt: **{len(sorted_ips)}**\n\n")
+              f.write("## Feed-Statistik\n\n")
+              f.write("| Feed | IPs |\n|---|---:|\n")
+              for name, count in feed_stats:
+                  f.write(f"| `{name}` | {count} |\n")
 
-          print(f"Fertig! Blacklist={len(blacklist)} | Watchlist={len(watchlist)} | Cloud/DC-Watchlist={len(datacenter_watchlist)}")
+          print(f"\nFertig! {len(sorted_ips)} IPs aus {len(SOURCES)} Feeds")
           EOF
 
       - name: Commit and Push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          grep -qxF 'threat_db.json' .gitignore 2>/dev/null || echo 'threat_db.json' >> .gitignore
-          grep -qxF 'discovered_feeds.json' .gitignore 2>/dev/null || echo 'discovered_feeds.json' >> .gitignore
-          grep -qxF 'ip_ai_model.joblib' .gitignore 2>/dev/null || echo 'ip_ai_model.joblib' >> .gitignore
-
-          git add \
-            combined_threat_blacklist_ipv4.txt \
-            watchlist_confidence20to39_ipv4.txt \
-            datacenter_suspect_watchlist_ipv4.txt \
-            auto_discovered_feeds.json \
-            combined_threat_blacklist_report.md \
-            .gitignore
-
+          git add combined_threat_blacklist_ipv4.txt combined_threat_blacklist_report.md
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Auto-update AI IPv4 threat lists [$(date -u '+%Y-%m-%d %H:%M') UTC]"
+            git commit -m "Auto-update combined threat blacklist [$(date -u '+%Y-%m-%d %H:%M') UTC]"
             git push origin HEAD:${GITHUB_REF_NAME}
           fi
