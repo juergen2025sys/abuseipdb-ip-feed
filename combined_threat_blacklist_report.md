@@ -1,8 +1,9 @@
 # Combined Threat Blacklist Report
 
-- Aktualisiert: **2026-03-08 19:33 UTC**
+- Aktualisiert: **2026-03-08 19:46 UTC**
 - Feeds gesamt: **31**
-- Eintraege gesamt: **2308029**
+- Eintraege gesamt: **2307998**
+- Abgelaufen & entfernt: **0**
 
 ## Feed-Statistik
 
@@ -23,14 +24,13 @@
 | `florent_banned` | 8884 |
 | `feodo_aggressive` | 7607 |
 | `nixbear_malicious` | 5566 |
-| `greensnow` | 4826 |
 | `cloudzy` | 3578 |
 | `cyna_malicious` | 3376 |
-| `f3csystems` | 3056 |
+| `f3csystems` | 3057 |
 | `binary_defense` | 1543 |
 | `bbcan177` | 1383 |
 | `l7_ddos` | 1138 |
-| `interserver` | 971 |
+| `interserver` | 983 |
 | `danger_bruteforce` | 573 |
 | `crowdsec_ssh` | 298 |
 | `honeypot_blocklist` | 276 |
@@ -38,4 +38,5 @@
 | `kevinmarx` | 70 |
 | `dshield` | 40 |
 | `fortigate_azure` | 33 |
+| `greensnow` | 0 |
 | `romainmarcoux_ac` | 0 |
