@@ -1,0 +1,9 @@
+# Score Decay Monitor Log
+# Erstellt: 2026-03-08 15:58 UTC
+# Gesamt IPs in DB: 2269210
+
+# ── ZOMBIE IPs (Score≥20, 30+ Tage inaktiv) ──
+
+# ── KRITISCH veraltend (45+ Tage, Score≥10) ──
+
+# ── Entfernungsempfehlung (60+ Tage inaktiv) ──
