@@ -148,17 +148,9 @@ jobs:
 
           print(f"cve_exploit_ips.txt: {len(final)} IPs | +{len(new_ips)} neu")
 
-          # ── combined_threat_blacklist aktualisieren ───────────────────────
-          BLACKLIST = "combined_threat_blacklist_ipv4.txt"
-          if os.path.exists(BLACKLIST):
-              with open(BLACKLIST) as f:
-                  bl_ips = set(IP_RE.findall(f.read()))
-              new_for_bl = all_exploit_ips - bl_ips
-              if new_for_bl:
-                  with open(BLACKLIST, "a") as f:
-                      f.write(f"\n# CVE/Exploit IPs – hinzugefügt {now_str}\n")
-                      f.write("\n".join(sorted(new_for_bl)) + "\n")
-                  print(f"Blacklist: +{len(new_for_bl)} Exploit-IPs hinzugefügt")
+          # CVE-IPs werden NICHT direkt in combined_threat_blacklist_ipv4.txt geschrieben.
+          # Der combined-blacklist-Workflow liest cve_exploit_ips.txt als Feed-Quelle ein.
+          print(f"cve_exploit_ips.txt fertig – wird vom combined-blacklist-Workflow eingelesen.")
 
           # ── Report ────────────────────────────────────────────────────────
           lines = []
@@ -192,6 +184,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add cve_exploit_ips.txt cve_exploit_report.md combined_threat_blacklist_ipv4.txt
+          git add cve_exploit_ips.txt cve_exploit_report.md
           git diff --staged --quiet || git commit -m "CVE Exploit IPs aktualisiert [$(date -u '+%Y-%m-%d %H:%M') UTC]"
           git push
