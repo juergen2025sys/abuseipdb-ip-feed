@@ -68,33 +68,89 @@ jobs:
           now_stamp = now.strftime("%Y-%m-%d %H:%M UTC")
 
           STATIC_SOURCES = {
-              "feodo_aggressive": "https://feodotracker.abuse.ch/downloads/ipblocklist_aggressive.txt",
-              "threatfox_ioc": "https://raw.githubusercontent.com/elliotwutingfeng/ThreatFox-IOC-IPs/refs/heads/main/ips.txt",
-              "c2_tracker": "https://raw.githubusercontent.com/montysecurity/C2-Tracker/main/data/all.txt",
-              "threatview_high_conf": "https://threatview.io/Downloads/IP-High-Confidence-Feed.txt",
-              "binary_defense": "https://binarydefense.com/banlist.txt",
-              "et_block_ips": "https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt",
-              "trcert_malware": "https://raw.githubusercontent.com/cenk/trcert-malware/refs/heads/main/trcert-ips.txt",
-              "firehol_abusers_1d": "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_abusers_1d.netset",
-              "firehol_cybercrime": "https://raw.githubusercontent.com/firehol/blocklist-ipsets/refs/heads/master/cybercrime.ipset",
-              "blocklist_de_all": "https://www.blocklist.de/downloads/export-ips_all.txt",
-              "blocklist_de_strong": "https://lists.blocklist.de/lists/strongips.txt",
-              "spamhaus_drop": "https://www.spamhaus.org/drop/drop.txt",
-              "cinsscore": "https://cinsscore.com/list/ci-badguys.txt",
-              "cinsarmy": "https://cinsarmy.com/list/ci-badguys.txt",
-              "greensnow": "https://blocklist.greensnow.co/greensnow.txt",
-              "dshield": "https://www.dshield.org/block.txt",
-              "danger_bruteforce": "https://danger.rulez.sk/projects/bruteforceblocker/blist.php",
+              # === C2 / Malware / IOC (Höchstes Gewicht) ===
+              "feodo_aggressive":         "https://feodotracker.abuse.ch/downloads/ipblocklist_aggressive.txt",
+              "feodo_standard":           "https://feodotracker.abuse.ch/downloads/ipblocklist.txt",
+              "threatfox_ioc":            "https://raw.githubusercontent.com/elliotwutingfeng/ThreatFox-IOC-IPs/refs/heads/main/ips.txt",
+              "c2_tracker":               "https://raw.githubusercontent.com/montysecurity/C2-Tracker/main/data/all.txt",
+              "threatview_high_conf":     "https://threatview.io/Downloads/IP-High-Confidence-Feed.txt",
+              "trcert_malware":           "https://raw.githubusercontent.com/cenk/trcert-malware/refs/heads/main/trcert-ips.txt",
+              "mirai_tracker":            "https://raw.githubusercontent.com/elliotwutingfeng/MiraiTracker-IPs/main/ips.txt",
+              "openphish":                "https://raw.githubusercontent.com/elliotwutingfeng/OpenPhish-IPs/main/ips.txt",
+              "urlhaus_ips":              "https://urlhaus.abuse.ch/downloads/text/",
+              "bazaar_ioc":               "https://bazaar.abuse.ch/export/txt/ips/recent/",
+              "botvrij_ioc":              "https://www.botvrij.eu/data/ioclist.ip-dst.txt",
+              "abuse_sslbl":              "https://sslbl.abuse.ch/blacklist/sslipblacklist_aggressive.csv",
+              "maltrail_malware":         "https://raw.githubusercontent.com/stamparm/maltrail/master/trails/static/malware/list.txt",
+              "maltrail_c2":              "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/5.txt",
+              "ipsum_lvl3":               "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/3.txt",
+              "ipsum_lvl4":               "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/4.txt",
+              "ipsum_lvl6":               "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/6.txt",
+              "ipsum_lvl7":               "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/7.txt",
+              # === Emerging Threats / Firewall Rules ===
+              "et_block_ips":             "https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt",
+              "et_compromised":           "https://rules.emergingthreats.net/blockrules/compromised-ips.txt",
+              "binary_defense":           "https://binarydefense.com/banlist.txt",
+              "spamhaus_drop":            "https://www.spamhaus.org/drop/drop.txt",
+              "spamhaus_edrop":           "https://www.spamhaus.org/drop/edrop.txt",
+              # === Firehol Sets ===
+              "firehol_abusers_1d":       "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_abusers_1d.netset",
+              "firehol_abusers_30d":      "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_abusers_30d.netset",
+              "firehol_cybercrime":       "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/cybercrime.ipset",
+              "firehol_level1":           "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset",
+              "firehol_level2":           "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level2.netset",
+              "firehol_level3":           "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level3.netset",
+              "firehol_ddos":             "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_ddos.netset",
+              "firehol_anonymous":        "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_anonymous.netset",
+              "firehol_webserver":        "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_webserver.netset",
+              # === Blocklist.de ===
+              "blocklist_de_all":         "https://www.blocklist.de/downloads/export-ips_all.txt",
+              "blocklist_de_strong":      "https://lists.blocklist.de/lists/strongips.txt",
+              "blocklist_de_ssh":         "https://lists.blocklist.de/lists/ssh.txt",
+              "blocklist_de_mail":        "https://lists.blocklist.de/lists/mail.txt",
+              "blocklist_de_apache":      "https://lists.blocklist.de/lists/apache.txt",
+              "blocklist_de_ftp":         "https://lists.blocklist.de/lists/ftp.txt",
+              "blocklist_de_imap":        "https://lists.blocklist.de/lists/imap.txt",
+              "blocklist_de_bruteforce":  "https://lists.blocklist.de/lists/bruteforce.txt",
+              # === DShield / SANS ===
+              "dshield":                  "https://www.dshield.org/block.txt",
+              "dshield_top20":            "https://isc.sans.edu/api/sources/attacks/20/?text",
+              # === Scanner / Brute-Force ===
+              "cinsscore":                "https://cinsscore.com/list/ci-badguys.txt",
+              "cinsarmy":                 "https://cinsarmy.com/list/ci-badguys.txt",
+              "greensnow":                "https://blocklist.greensnow.co/greensnow.txt",
+              "danger_bruteforce":        "https://danger.rulez.sk/projects/bruteforceblocker/blist.php",
               "shadowwhisperer_scanners": "https://raw.githubusercontent.com/ShadowWhisperer/IPs/master/Other/Scanners",
-              "shadowwhisperer_bf_high": "https://raw.githubusercontent.com/ShadowWhisperer/IPs/master/BruteForce/High",
-              "shadowwhisperer_bf_extreme": "https://raw.githubusercontent.com/ShadowWhisperer/IPs/master/BruteForce/Extreme",
-              "crowdsec_ssh_bf": "https://raw.githubusercontent.com/Y3ll0w/CrowdSec-CAPI-Decisions/refs/heads/main/ssh-bf.json.txt",
-              "interserver": "https://sigs.interserver.net/ip.txt",
-              "sefinek": "https://raw.githubusercontent.com/sefinek/Malicious-IP-Addresses/main/lists/main.txt",
-              "netshield_blacklist": "https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/refs/heads/main/blacklist_confidence40_ipv4.txt",
-              "netshield_botdetector": "https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/refs/heads/main/bot_detector_blacklist_ipv4.txt",
-              "netshield_tor_exits": "https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/refs/heads/main/tor_exit_nodes.txt",
-              "netshield_cve_exploits": "https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/refs/heads/main/cve_exploit_ips.txt",
+              "shadowwhisperer_bf_high":  "https://raw.githubusercontent.com/ShadowWhisperer/IPs/master/BruteForce/High",
+              "shadowwhisperer_bf_extreme":"https://raw.githubusercontent.com/ShadowWhisperer/IPs/master/BruteForce/Extreme",
+              "shadowwhisperer_malware":  "https://raw.githubusercontent.com/ShadowWhisperer/IPs/master/Malware/Malware",
+              "shadowwhisperer_ddos":     "https://raw.githubusercontent.com/ShadowWhisperer/IPs/master/DDoS/DDoS",
+              "crowdsec_ssh_bf":          "https://raw.githubusercontent.com/Y3ll0w/CrowdSec-CAPI-Decisions/refs/heads/main/ssh-bf.json.txt",
+              "interserver":              "https://sigs.interserver.net/ip.txt",
+              "sefinek":                  "https://raw.githubusercontent.com/sefinek/Malicious-IP-Addresses/main/lists/main.txt",
+              "binaryedge_scanner":       "https://raw.githubusercontent.com/elliotwutingfeng/BinaryEdge-Top-Malicious-IPs/main/ips.txt",
+              "charles_haley_ssh":        "https://raw.githubusercontent.com/charles-haley/public-threatintel/main/ssh-bruteforce.txt",
+              "abuse_recommended":        "https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/main/abuseipdb-s100-30d.ipv4",
+              "abuse_90d":                "https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/main/abuseipdb-s100-90d.ipv4",
+              "ninja_scanner":            "https://raw.githubusercontent.com/NiNjA-BoT/Block-List/master/bruteforce.txt",
+              "stopforumspam_toxic":      "https://www.stopforumspam.com/downloads/toxic_ip_cidr.txt",
+              "dataplane_ssh":            "https://dataplane.org/sshpwauth.txt",
+              "dataplane_telnet":         "https://dataplane.org/telnetlogin.txt",
+              "dataplane_sipinvite":       "https://dataplane.org/sipinvitation.txt",
+              "dataplane_proto_tcp":      "https://dataplane.org/proto41.txt",
+              "bruteforceblocker":        "https://www.openbl.org/lists/base.txt",
+              "turris_greylist":          "https://www.turris.cz/greylist-data/greylist-latest.csv",
+              "rescure":                  "https://rescure.me/rescure_blacklist.txt",
+              "ipsum_master":             "https://raw.githubusercontent.com/stamparm/ipsum/master/ipsum.txt",
+              # === TOR / VPN / Proxy ===
+              "dan_tor":                  "https://www.dan.me.uk/torlist/?exit",
+              "tor_bulk_exit":            "https://check.torproject.org/torbulkexitlist",
+              "proxy_spy":                "https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/http.txt",
+              # === NETSHIELD eigene Listen ===
+              "netshield_blacklist":      "https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/refs/heads/main/blacklist_confidence40_ipv4.txt",
+              "netshield_botdetector":    "https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/refs/heads/main/bot_detector_blacklist_ipv4.txt",
+              "netshield_tor_exits":      "https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/refs/heads/main/tor_exit_nodes.txt",
+              "netshield_cve_exploits":   "https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/refs/heads/main/cve_exploit_ips.txt",
           }
 
           DISCOVERY_PAGES = [
@@ -179,21 +235,21 @@ jobs:
           def keyword_weight(name_or_url):
               s = name_or_url.lower()
               score = 1
-              if any(k in s for k in ("feodo", "threatfox", "c2", "ioc", "malware")):
+              if any(k in s for k in ("feodo", "threatfox", "c2", "ioc", "malware", "bazaar", "sslbl", "urlhaus", "botvrij", "mirai")):
                   score += 5
-              if any(k in s for k in ("drop", "botnet", "aggressive", "compromised")):
+              if any(k in s for k in ("drop", "botnet", "aggressive", "compromised", "ipsum", "maltrail", "openphish")):
                   score += 4
-              if any(k in s for k in ("scanner", "bruteforce", "ssh", "ddos", "abusers")):
+              if any(k in s for k in ("scanner", "bruteforce", "ssh", "ddos", "abusers", "dataplane", "crowdsec", "shadowwhisperer")):
                   score += 2
-              if "abuseipdb" in s or "blocklist" in s or "badguys" in s:
+              if any(k in s for k in ("abuseipdb", "blocklist", "badguys", "rescure", "turris", "stopforumspam", "binaryedge")):
                   score += 1
               return min(score, 10)
 
           def source_kind(name_or_url):
               s = name_or_url.lower()
-              if any(k in s for k in ("c2", "ioc", "feodo", "threatfox", "malware", "compromised")):
+              if any(k in s for k in ("c2", "ioc", "feodo", "threatfox", "malware", "compromised", "bazaar", "sslbl", "urlhaus", "botvrij", "mirai", "openphish", "maltrail", "ipsum")):
                   return "malware"
-              if any(k in s for k in ("ddos", "scanner", "bruteforce", "ssh", "abusers")):
+              if any(k in s for k in ("ddos", "scanner", "bruteforce", "ssh", "abusers", "dataplane", "crowdsec", "shadowwhisperer", "turris")):
                   return "scanner"
               return "generic"
 
