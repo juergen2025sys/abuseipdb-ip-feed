@@ -2,7 +2,7 @@
 # 🛡️ NETSHIELD — IPv4 Blocklist Suite
 
 Complete IPv4 threat intelligence feed for firewalls, OPNsense, pfSense, and FortiGate.  
-Automatically updated via PowerShell — free to use, no attribution required.
+Automatically updated — free to use, no attribution required.
 
 ---
 
@@ -12,7 +12,6 @@ Automatically updated via PowerShell — free to use, no attribution required.
 - **Content:** All IPv4 ranges from all 249 countries worldwide
 - **Entries:** ~254,556 CIDR ranges
 - **Format:** CIDR (e.g. `1.0.0.0/24`)
-- **Source:** [country-ip-blocks.hackinggate.com](https://country-ip-blocks.hackinggate.com)
 - **Update:** Automatic
 - **Raw:** `https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/main/all_countries_ipv4.txt`
 - **Use Case:** Block all incoming WAN traffic from every country in the world with a single list. Perfect for firewalls where no inbound connections are needed — completely eliminates the attack surface from foreign IPs.
@@ -35,19 +34,17 @@ For more granular control — block only specific regions instead of the entire 
 ---
 
 ### 🚫 `blacklist_confidence40_ipv4.txt`
-- **Content:** Confirmed malicious IPs with AbuseIPDB confidence score **≥ 40%**
+- **Content:** Confirmed malicious IPs with confidence score **≥ 40%**
 - **Format:** One IP per line
-- **Source:** [AbuseIPDB](https://www.abuseipdb.com)
+
 - **Update:** Automatic (daily)
-- **Raw:** `https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/main/blacklist_confidence40_ipv4.txt`
-- **Use Case:** Block high-confidence threat IPs — known attackers, scanners, brute-force bots, and malicious actors.
+- **Raw:** `https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/main/blacklist_confidence40_ipv4.txt` — known attackers, scanners, brute-force bots, and malicious actors.
 
 ---
 
 ### ⚠️ `watchlist_confidence20to39_ipv4.txt`
-- **Content:** Suspicious IPs with AbuseIPDB confidence score **20–39%**
+- **Content:** Suspicious IPs with confidence score **20–39%**
 - **Format:** One IP per line
-- **Source:** [AbuseIPDB](https://www.abuseipdb.com)
 - **Update:** Automatic (daily)
 - **Raw:** `https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/main/watchlist_confidence20to39_ipv4.txt`
 - **Use Case:** Monitor or soft-block low-confidence suspicious IPs — useful for rate limiting, logging, or stricter inspection rules.
@@ -84,7 +81,7 @@ IP ranges verified to be present in `all_countries_ipv4.txt`:
 
 ## 📋 Tags
 
-`security` `firewall` `blocklist` `ipv4` `opnsense` `geoip` `fortigate` `threat-intelligence` `ip-blocklist` `abuseipdb`
+`security` `firewall` `blocklist` `ipv4` `opnsense` `geoip` `fortigate` `threat-intelligence` `ip-blocklist`
 
 ---
 
