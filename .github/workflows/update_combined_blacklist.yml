@@ -59,9 +59,6 @@ jobs:
               "romainmarcoux_ab":     "https://raw.githubusercontent.com/romainmarcoux/malicious-ip/main/full-300k-ab.txt",
               "romainmarcoux_ac":     "https://raw.githubusercontent.com/romainmarcoux/malicious-ip/main/full-300k-ac.txt",
               "4ip_high_security":    "https://raw.githubusercontent.com/4IP-Solutions/threat-feeds/refs/heads/main/blocklist-incoming-ip-high-security.txt",
-              "ultimate_hosts":       "https://raw.githubusercontent.com/Ultimate-Hosts-Blacklist/Ultimate.Hosts.Blacklist/refs/heads/master/ips/ips0.list",
-              "amitambekar_full":     "https://raw.githubusercontent.com/amitambekar510/Malicious-IP-Threat-List/refs/heads/main/Malicious-IP-Threat-List.txt",
-              "amitambekar_aa":       "https://raw.githubusercontent.com/amitambekar510/Malicious-IP-Threat-List/main/Malicious-IP-Threat-List_aa",
               "cyna_malicious":       "https://raw.githubusercontent.com/cybersecurity-cyna/Malicious_IP/refs/heads/main/ip-list.txt",
               "black_mirror":         "https://github.com/T145/black-mirror/releases/download/latest/BLOCK_IPV4.txt",
           }
