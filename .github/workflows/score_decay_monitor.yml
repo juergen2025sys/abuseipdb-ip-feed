@@ -16,7 +16,15 @@ jobs:
         with:
           persist-credentials: true
 
-      - name: Run Score Decay Monitor
+      - name: Restore seen_db Cache
+        uses: actions/cache@v4
+        with:
+          path: seen_db.json
+          key: netshield-seen-db-v1
+          restore-keys: |
+            netshield-seen-db-
+
+
         run: |
           python3 << 'EOF'
           import json
@@ -218,6 +226,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add score_decay_report.md score_decay_log.txt combined_threat_blacklist_ipv4.txt seen_db.json
+          git add score_decay_report.md score_decay_log.txt combined_threat_blacklist_ipv4.txt
           git diff --staged --quiet || git commit -m "Score Decay: Auto-Cleanup abgeschlossen [$(date -u '+%Y-%m-%d %H:%M') UTC]"
           git push

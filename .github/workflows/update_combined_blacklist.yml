@@ -22,7 +22,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: seen_db.json
-          key: netshield-seen-db-${{ github.run_id }}
+          key: netshield-seen-db-v1
           restore-keys: |
             netshield-seen-db-
 
@@ -257,7 +257,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add combined_threat_blacklist_ipv4.txt combined_threat_blacklist_report.md seen_db.json
+          git add combined_threat_blacklist_ipv4.txt combined_threat_blacklist_report.md
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
