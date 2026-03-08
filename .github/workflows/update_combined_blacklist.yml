@@ -23,8 +23,9 @@ jobs:
           python3 << 'EOF'
           import urllib.request
           import re
+          import json
           import os
-          from datetime import datetime, timezone
+          from datetime import datetime, timezone, timedelta
 
           SOURCES = [
               "https://cinsscore.com/list/ci-badguys.txt",
@@ -45,7 +46,7 @@ jobs:
               "https://raw.githubusercontent.com/CriticalPathSecurity/Public-Intelligence-Feeds/refs/heads/master/cloudzy.txt",
               "https://gist.githubusercontent.com/BBcan177/d7105c242f17f4498f81/raw",
               "https://kevinmarx.org/malicious-ip-list.txt",
-              "https://raw.githubusercontent.com/yuexuan521/honeypot-blocklist/refs/heads/main/ip_list.txt",
+              "https://raw.githubusercontent.com/yuexuana521/honeypot-blocklist/refs/heads/main/ip_list.txt",
               "https://raw.githubusercontent.com/EdanWong/ip_list/refs/heads/main/my_ips.txt",
               "https://raw.githubusercontent.com/nixbear/malicious_ips/refs/heads/main/malicious_ips.txt",
               "https://raw.githubusercontent.com/ufukart/Blacklist/main/blacklist.txt",
@@ -53,53 +54,75 @@ jobs:
               "https://raw.githubusercontent.com/IT3ngineer/FortigateBlockList/refs/heads/main/AzureBlockListIPs.txt",
           ]
 
-          # Regex für IPv4
-          IP_PATTERN = re.compile(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?:/\d{1,2})?\b')
+          IP_PATTERN = re.compile(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b')
+          EXPIRY_DAYS = 60
+          DB_FILE = "threat_db.json"
 
-          # Bestehende IPs laden
-          existing_file = "combined_threat_blacklist_ipv4.txt"
-          existing_ips = set()
-          if os.path.exists(existing_file):
-              with open(existing_file, "r") as f:
-                  for line in f:
-                      line = line.strip()
-                      if line and not line.startswith("#"):
-                          existing_ips.add(line)
-              print(f"Bestehende IPs geladen: {len(existing_ips)}")
+          now = datetime.now(timezone.utc)
+          now_str = now.strftime("%Y-%m-%d")
 
-          # Neue IPs aus allen Quellen sammeln
-          new_ips = set()
+          # Datenbank laden
+          db = {}
+          if os.path.exists(DB_FILE):
+              with open(DB_FILE, "r") as f:
+                  db = json.load(f)
+              print(f"Datenbank geladen: {len(db)} IPs")
+
+          # IPs aus allen Quellen sammeln
+          current_ips = set()
           for url in SOURCES:
               try:
                   req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
                   with urllib.request.urlopen(req, timeout=15) as r:
                       content = r.read().decode("utf-8", errors="ignore")
-                  found = IP_PATTERN.findall(content)
-                  new_ips.update(found)
+                  found = set(IP_PATTERN.findall(content))
+                  current_ips.update(found)
                   print(f"OK: {url.split('/')[-1]} → {len(found)} IPs")
               except Exception as e:
                   print(f"FEHLER: {url.split('/')[-1]} → {e}")
 
-          # Nur wirklich neue IPs
-          added_ips = new_ips - existing_ips
-          all_ips = existing_ips | new_ips
-          sorted_ips = sorted(all_ips)
+          # Datenbank aktualisieren
+          for ip in current_ips:
+              if ip in db:
+                  db[ip]["score"] = min(db[ip]["score"] + 1, len(SOURCES))
+                  db[ip]["last_seen"] = now_str
+              else:
+                  db[ip] = {
+                      "score": 1,
+                      "first_seen": now_str,
+                      "last_seen": now_str
+                  }
 
-          now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-          with open(existing_file, "w") as f:
+          # Abgelaufene IPs entfernen (60 Tage nicht mehr gesehen)
+          expired = []
+          for ip in list(db.keys()):
+              last = datetime.strptime(db[ip]["last_seen"], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+              if (now - last).days > EXPIRY_DAYS:
+                  expired.append(ip)
+                  del db[ip]
+          print(f"Abgelaufen & entfernt: {len(expired)} IPs")
+
+          # Datenbank speichern
+          with open(DB_FILE, "w") as f:
+              json.dump(db, f, indent=2)
+
+          # Blacklist ausgeben (alle IPs, sortiert nach Score absteigend)
+          sorted_ips = sorted(db.keys(), key=lambda ip: db[ip]["score"], reverse=True)
+
+          with open("combined_threat_blacklist_ipv4.txt", "w") as f:
               f.write(f"# Combined Threat Blacklist\n")
-              f.write(f"# Aktualisiert: {now}\n")
+              f.write(f"# Aktualisiert: {now.strftime('%Y-%m-%d %H:%M UTC')}\n")
               f.write(f"# Gesamt IPs: {len(sorted_ips)}\n")
-              f.write(f"# Neu hinzugefügt: {len(added_ips)}\n")
+              f.write(f"# Abgelaufen & entfernt: {len(expired)}\n")
               f.write("\n".join(sorted_ips) + "\n")
 
-          print(f"\nFertig! Gesamt: {len(sorted_ips)} | Neu: {len(added_ips)}")
+          print(f"\nFertig! Gesamt: {len(sorted_ips)} IPs | Abgelaufen: {len(expired)}")
           EOF
 
       - name: Commit & Push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add combined_threat_blacklist_ipv4.txt
+          git add combined_threat_blacklist_ipv4.txt threat_db.json
           git diff --staged --quiet || git commit -m "Auto-update combined_threat_blacklist_ipv4.txt [$(date -u '+%Y-%m-%d %H:%M') UTC]"
           git push
