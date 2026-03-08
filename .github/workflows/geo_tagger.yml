@@ -1,0 +1,184 @@
+name: Geo-Tagger
+
+on:
+  schedule:
+    - cron: '0 6 * * 0'  # wöchentlich Sonntag 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  geo-tagger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Enrich Blacklist with Geo & ASN Data
+        run: |
+          python3 << 'EOF'
+          import urllib.request
+          import re
+          import os
+          import json
+          import time
+          from datetime import datetime, timezone
+          from collections import defaultdict
+
+          now = datetime.now(timezone.utc)
+          now_str = now.strftime("%Y-%m-%d %H:%M UTC")
+          IP_RE = re.compile(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b')
+
+          def fetch_json(url, timeout=15):
+              try:
+                  req = urllib.request.Request(url, headers={"User-Agent": "NETSHIELD-GeoTagger/1.0"})
+                  with urllib.request.urlopen(req, timeout=timeout) as r:
+                      return json.loads(r.read().decode("utf-8", errors="ignore"))
+              except Exception as e:
+                  return None
+
+          # ── Blacklist laden ───────────────────────────────────────────────
+          BLACKLIST = "combined_threat_blacklist_ipv4.txt"
+          if not os.path.exists(BLACKLIST):
+              print("FEHLER: Blacklist nicht gefunden!")
+              exit(1)
+
+          with open(BLACKLIST) as f:
+              blacklist_ips = [l.strip() for l in f if l.strip() and not l.startswith("#")]
+
+          print(f"Blacklist: {len(blacklist_ips)} IPs geladen")
+          print("Starte Geo/ASN-Lookup via ip-api.com (Batch, kostenlos)...")
+
+          # ip-api.com Batch: bis zu 100 IPs pro Request, kostenlos
+          geo_data = {}
+          country_count  = defaultdict(int)
+          asn_count      = defaultdict(lambda: {"count": 0, "org": ""})
+          city_count     = defaultdict(int)
+
+          BATCH_SIZE = 100
+          sample = blacklist_ips[:1000]  # Top 1000 enrichen
+
+          for batch_start in range(0, len(sample), BATCH_SIZE):
+              batch = sample[batch_start:batch_start + BATCH_SIZE]
+              batch_num = batch_start // BATCH_SIZE + 1
+              total_batches = (len(sample) + BATCH_SIZE - 1) // BATCH_SIZE
+              print(f"  Batch {batch_num}/{total_batches} ({len(batch)} IPs)...")
+
+              # ip-api.com Batch-Endpunkt
+              payload = json.dumps([
+                  {"query": ip, "fields": "status,country,countryCode,city,org,as,isp,proxy,hosting"}
+                  for ip in batch
+              ]).encode("utf-8")
+
+              try:
+                  req = urllib.request.Request(
+                      "http://ip-api.com/batch?fields=status,country,countryCode,city,org,as,isp,proxy,hosting",
+                      data=payload,
+                      headers={
+                          "Content-Type": "application/json",
+                          "User-Agent": "NETSHIELD-GeoTagger/1.0"
+                      }
+                  )
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      results = json.loads(r.read().decode("utf-8"))
+
+                  for ip, result in zip(batch, results):
+                      if result.get("status") == "success":
+                          geo_data[ip] = {
+                              "country":     result.get("country", "Unknown"),
+                              "countryCode": result.get("countryCode", "??"),
+                              "city":        result.get("city", ""),
+                              "org":         result.get("org", ""),
+                              "asn":         result.get("as", ""),
+                              "isp":         result.get("isp", ""),
+                              "proxy":       result.get("proxy", False),
+                              "hosting":     result.get("hosting", False),
+                          }
+                          cc = result.get("countryCode", "??")
+                          country_count[cc] += 1
+                          asn = result.get("as", "")
+                          if asn:
+                              asn_count[asn]["count"] += 1
+                              asn_count[asn]["org"] = result.get("org", "")
+              except Exception as e:
+                  print(f"    Batch-Fehler: {e}")
+
+              time.sleep(1.2)  # ip-api Rate-Limit: max 45 Batch-Requests/Minute
+
+          print(f"\nGeo-Daten für {len(geo_data)} IPs ermittelt")
+
+          # ── Geo-enriched Report schreiben ─────────────────────────────────
+          GEO_FILE = "blacklist_geo_enriched.json"
+          with open(GEO_FILE, "w") as f:
+              json.dump({
+                  "updated": now_str,
+                  "total_enriched": len(geo_data),
+                  "data": geo_data
+              }, f, separators=(",", ":"))
+          print(f"{GEO_FILE} geschrieben")
+
+          # ── Statistik-Dateien ─────────────────────────────────────────────
+          # Top-Länder
+          sorted_countries = sorted(country_count.items(), key=lambda x: x[1], reverse=True)
+          # Top-ASNs
+          sorted_asns = sorted(asn_count.items(), key=lambda x: x[1]["count"], reverse=True)
+
+          # Proxy/Hosting-IPs gesondert auflisten
+          proxy_ips   = [ip for ip, d in geo_data.items() if d.get("proxy")]
+          hosting_ips = [ip for ip, d in geo_data.items() if d.get("hosting")]
+
+          # ── Report ────────────────────────────────────────────────────────
+          lines = []
+          lines.append("# Geo-Tagger – Blacklist Enrichment Report")
+          lines.append(f"**Aktualisiert:** {now_str}\n")
+          lines.append("---")
+          lines.append(f"## Top 20 Länder (nach Blacklist-IPs)\n")
+          lines.append("| Rang | Land | Code | IPs | Anteil |")
+          lines.append("|---|---|---|---|---|")
+          total = len(geo_data) or 1
+          flags = {"CN":"🇨🇳","RU":"🇷🇺","US":"🇺🇸","DE":"🇩🇪","NL":"🇳🇱","FR":"🇫🇷",
+                   "GB":"🇬🇧","BR":"🇧🇷","IN":"🇮🇳","KR":"🇰🇷","VN":"🇻🇳","UA":"🇺🇦",
+                   "TR":"🇹🇷","ID":"🇮🇩","HK":"🇭🇰","SG":"🇸🇬","JP":"🇯🇵","IR":"🇮🇷",
+                   "PL":"🇵🇱","TH":"🇹🇭"}
+          for rank, (cc, count) in enumerate(sorted_countries[:20], 1):
+              flag = flags.get(cc, "🏳️")
+              country_name = geo_data.get(
+                  next((ip for ip, d in geo_data.items() if d["countryCode"] == cc), ""),
+                  {}
+              ).get("country", cc)
+              pct = f"{count/total*100:.1f}%"
+              lines.append(f"| {rank} | {flag} {country_name} | {cc} | {count} | {pct} |")
+
+          lines.append("")
+          lines.append("---")
+          lines.append(f"## Top 20 ASNs (nach Blacklist-IPs)\n")
+          lines.append("| Rang | ASN | Organisation | IPs |")
+          lines.append("|---|---|---|---|")
+          for rank, (asn, d) in enumerate(sorted_asns[:20], 1):
+              lines.append(f"| {rank} | `{asn}` | {d['org'][:40]} | {d['count']} |")
+
+          lines.append("")
+          lines.append("---")
+          lines.append(f"## Proxy & Hosting IPs\n")
+          lines.append(f"| Kategorie | Anzahl |")
+          lines.append(f"|---|---|")
+          lines.append(f"| Als Proxy erkannt | **{len(proxy_ips)}** |")
+          lines.append(f"| Als Hosting erkannt | **{len(hosting_ips)}** |")
+          lines.append(f"| Gesamt enriched | **{len(geo_data)}** |")
+
+          lines.append(f"\n---\n*Generiert: {now_str}*")
+
+          with open("geo_tagger_report.md", "w") as f:
+              f.write("\n".join(lines))
+          print("geo_tagger_report.md geschrieben")
+          EOF
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add blacklist_geo_enriched.json geo_tagger_report.md
+          git diff --staged --quiet || git commit -m "Geo-Tagger: Blacklist enriched [$(date -u '+%Y-%m-%d %H:%M') UTC]"
+          git push
