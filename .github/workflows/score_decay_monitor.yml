@@ -16,14 +16,6 @@ jobs:
         with:
           persist-credentials: true
 
-      - name: Cache seen_db.json
-        uses: actions/cache@v4
-        with:
-          path: seen_db.json
-          key: netshield-seen-db-${{ github.run_id }}
-          restore-keys: |
-            netshield-seen-db-
-
       - name: Run Score Decay Monitor
         run: |
           python3 << 'EOF'
@@ -36,11 +28,9 @@ jobs:
           now = datetime.now(timezone.utc)
           now_str = now.strftime("%Y-%m-%d %H:%M UTC")
 
-          # ── seen_db.json laden ──────────────────────────────────────────
           DB_FILE = "seen_db.json"
           if not os.path.exists(DB_FILE):
               print("FEHLER: seen_db.json nicht gefunden (läuft nur nach Blacklist-Workflow)")
-              # Leeren Report schreiben
               with open("score_decay_report.md", "w") as f:
                   f.write("# Score Decay Monitor\n\n")
                   f.write("*seen_db.json nicht gefunden – bitte zuerst Update Combined Threat Blacklist ausführen.*\n")
@@ -51,24 +41,19 @@ jobs:
 
           print(f"seen_db.json geladen: {len(db)} IPs")
 
-          # ── Decay-Analyse ─────────────────────────────────────────────────
-          # Schwellenwerte
-          WARN_DAYS        = 30   # Warnen wenn nicht gesehen seit X Tagen aber Score >= 5
-          CRITICAL_DAYS    = 45   # Kritisch wenn nicht gesehen seit X Tagen aber Score >= 10
-          HIGH_SCORE_MIN   = 5    # Ab diesem Score wird überhaupt gewarnt
-          DECAY_SUGGESTION = 60   # Empfehlung: nach X Tagen aus DB entfernen
+          WARN_DAYS        = 30
+          CRITICAL_DAYS    = 45
+          HIGH_SCORE_MIN   = 5
+          DECAY_SUGGESTION = 60
 
-          stale_warn     = []  # 30-44 Tage alt, Score >= 5
-          stale_critical = []  # 45+ Tage alt, Score >= 10
-          decay_suggest  = []  # 60+ Tage = sollten entfernt werden
-          still_active   = []  # in den letzten 7 Tagen gesehen
-          zombie_high    = []  # Score >= 20 aber seit 30+ Tagen nicht gesehen
-
-          score_dist = defaultdict(int)  # Score-Verteilung
+          stale_warn     = []
+          stale_critical = []
+          decay_suggest  = []
+          still_active   = []
+          zombie_high    = []
+          score_dist     = defaultdict(int)
 
           for ip, data in db.items():
-              # seen_db Format: {"first": "2025-01-01", "last": "2026-03-08", "hq": true}
-              # Score = Tage aktiv seit first_seen (längere Aktivität = höheres Vertrauen)
               last_seen  = data.get("last", "2000-01-01")
               first_seen = data.get("first", last_seen)
               is_hq      = data.get("hq", False)
@@ -77,16 +62,12 @@ jobs:
                   first_dt = datetime.strptime(first_seen, "%Y-%m-%d").replace(tzinfo=timezone.utc)
               except:
                   continue
-              days_ago   = (now - last_dt).days
+              days_ago    = (now - last_dt).days
               days_active = (last_dt - first_dt).days + 1
-              # Score: Tage aktiv + Bonus für HQ-Quellen
-              score = days_active + (20 if is_hq else 0)
-
-              # Score-Verteilung
-              bucket = (score // 5) * 5
+              score       = days_active + (20 if is_hq else 0)
+              bucket      = (score // 5) * 5
               score_dist[bucket] += 1
 
-              # Kategorisierung
               if days_ago <= 7:
                   still_active.append((ip, score, days_ago))
               if days_ago >= DECAY_SUGGESTION:
@@ -98,41 +79,31 @@ jobs:
               if score >= 20 and days_ago >= 30:
                   zombie_high.append((ip, score, days_ago, last_seen))
 
-          # Sortieren nach Score (hoch = wichtigste Anomalie)
           stale_critical.sort(key=lambda x: x[1], reverse=True)
           stale_warn.sort(    key=lambda x: x[1], reverse=True)
           zombie_high.sort(   key=lambda x: x[1], reverse=True)
           decay_suggest.sort( key=lambda x: x[2], reverse=True)
 
           print(f"\nAnalyse:")
-          print(f"  Kürzlich aktiv (≤7 Tage):          {len(still_active)}")
-          print(f"  Veraltend – Warnung (30-44 Tage):   {len(stale_warn)}")
-          print(f"  Veraltend – Kritisch (45+ Tage):    {len(stale_critical)}")
-          print(f"  Zombie (Score≥20, 30+ Tage inaktiv):{len(zombie_high)}")
-          print(f"  Entfernungsempfehlung (60+ Tage):   {len(decay_suggest)}")
+          print(f"  Kürzlich aktiv (≤7 Tage):           {len(still_active)}")
+          print(f"  Veraltend – Warnung (30-44 Tage):    {len(stale_warn)}")
+          print(f"  Veraltend – Kritisch (45+ Tage):     {len(stale_critical)}")
+          print(f"  Zombie (Score≥20, 30+ Tage inaktiv): {len(zombie_high)}")
+          print(f"  Entfernungsempfehlung (60+ Tage):    {len(decay_suggest)}")
 
-          # ── Decay-Bericht in Datei ────────────────────────────────────────
           DECAY_FILE = "score_decay_log.txt"
           with open(DECAY_FILE, "w") as f:
-              f.write(f"# Score Decay Monitor Log\n")
-              f.write(f"# Erstellt: {now_str}\n")
-              f.write(f"# Gesamt IPs in DB: {len(db)}\n\n")
-
+              f.write(f"# Score Decay Monitor Log\n# Erstellt: {now_str}\n# Gesamt IPs in DB: {len(db)}\n\n")
               f.write("# ── ZOMBIE IPs (Score≥20, 30+ Tage inaktiv) ──\n")
               for ip, score, days, last in zombie_high[:100]:
                   f.write(f"{ip}  score={score}  last_seen={last}  ({days}d ago)\n")
-
               f.write("\n# ── KRITISCH veraltend (45+ Tage, Score≥10) ──\n")
               for ip, score, days, last in stale_critical[:200]:
                   f.write(f"{ip}  score={score}  last_seen={last}  ({days}d ago)\n")
-
               f.write("\n# ── Entfernungsempfehlung (60+ Tage inaktiv) ──\n")
               for ip, score, days, last in decay_suggest[:500]:
                   f.write(f"{ip}  score={score}  last_seen={last}  ({days}d ago)\n")
 
-          print(f"{DECAY_FILE} geschrieben")
-
-          # ── Report ────────────────────────────────────────────────────────
           lines = []
           lines.append("# Score Decay Monitor – Report")
           lines.append(f"**Aktualisiert:** {now_str}\n")
@@ -146,7 +117,6 @@ jobs:
           lines.append(f"| 💀 Zombie (hoher Score, inaktiv) | **{len(zombie_high)}** | Score≥20 aber 30+ Tage tot |")
           lines.append(f"| 🗑️ Entfernung empfohlen | **{len(decay_suggest)}** | 60+ Tage inaktiv |")
 
-          # Score-Verteilung
           lines.append("")
           lines.append("---")
           lines.append("## Score-Verteilung\n")
@@ -156,7 +126,6 @@ jobs:
               bar = "█" * min(score_dist[bucket] // 100, 20)
               lines.append(f"| {bucket}-{bucket+4} | {score_dist[bucket]} {bar} |")
 
-          # Top Zombie IPs
           if zombie_high:
               lines.append("")
               lines.append("---")
@@ -167,7 +136,6 @@ jobs:
               for ip, score, days, last in zombie_high[:25]:
                   lines.append(f"| `{ip}` | {score} | {last} | {days}d |")
 
-          # Entfernungsempfehlungen
           if decay_suggest:
               lines.append("")
               lines.append("---")
@@ -184,10 +152,7 @@ jobs:
 
           with open("score_decay_report.md", "w") as f:
               f.write("\n".join(lines))
-          print("score_decay_report.md geschrieben")
 
-          # ── IPs aus Blacklist löschen ─────────────────────────────────────
-          # Entfernt werden: 60+ Tage inaktiv (decay_suggest)
           BLACKLIST = "combined_threat_blacklist_ipv4.txt"
           removed_from_bl = 0
           if os.path.exists(BLACKLIST) and decay_suggest:
@@ -199,23 +164,18 @@ jobs:
                   ip = line.strip()
                   if ip and not ip.startswith("#") and ip in remove_set:
                       removed_from_bl += 1
-                      # Auch aus seen_db entfernen
                       db.pop(ip, None)
                   else:
                       cleaned.append(line)
               if removed_from_bl > 0:
                   with open(BLACKLIST, "w") as f:
                       f.writelines(cleaned)
-                  # seen_db aktualisiert speichern
                   with open(DB_FILE, "w") as f:
                       json.dump(db, f, separators=(",", ":"))
                   print(f"\n✅ {removed_from_bl} IPs aus Blacklist + seen_db entfernt (60+ Tage inaktiv)")
               else:
                   print("\nKeine IPs zum Entfernen gefunden")
-          elif not decay_suggest:
-              print("\nKeine IPs zum Entfernen (noch keine 60 Tage inaktiv)")
 
-          # Lösch-Zusammenfassung in Report ergänzen
           with open("score_decay_report.md", "a") as f:
               f.write(f"\n---\n## 🗑️ Automatisch gelöscht\n")
               f.write(f"**{removed_from_bl} IPs** aus Blacklist entfernt (60+ Tage in keinem Feed gesehen)\n")
