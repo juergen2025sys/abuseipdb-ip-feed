@@ -19,12 +19,12 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           persist-credentials: true
 
       - name: Restore seen_db Cache
-        uses: actions/cache@v4
+        uses: actions/cache@d4323d4df104b026a6aa633fef9e2dfab7b3d0eb # v4
         with:
           path: seen_db.json
           key: netshield-seen-db-v1
@@ -386,7 +386,7 @@ jobs:
           EOF
 
       - name: Save seen_db Cache
-        uses: actions/cache@v4
+        uses: actions/cache@d4323d4df104b026a6aa633fef9e2dfab7b3d0eb # v4
         with:
           path: seen_db.json
           key: netshield-seen-db-v1-${{ github.run_id }}

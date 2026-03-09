@@ -1,0 +1,229 @@
+name: Community IP Report
+
+on:
+  issues:
+    types: [opened, reopened]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: community-report-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  process-report:
+    # Nur Issues mit dem Label "community-report" verarbeiten
+    if: contains(github.event.issue.labels.*.name, 'community-report')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: true
+
+      - name: Restore seen_db Cache
+        uses: actions/cache@d4323d4df104b026a6aa633fef9e2dfab7b3d0eb # v4
+        with:
+          path: seen_db.json
+          key: netshield-seen-db-v1
+          restore-keys: |
+            netshield-seen-db-
+
+      - name: Process Community Report
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_USER: ${{ github.event.issue.user.login }}
+        run: |
+          python3 << 'EOF'
+          import ipaddress, json, os, re
+          from datetime import datetime, timezone
+
+          now     = datetime.now(timezone.utc)
+          now_day = now.strftime("%Y-%m-%d")
+
+          issue_body   = os.environ.get("ISSUE_BODY", "")
+          issue_number = os.environ.get("ISSUE_NUMBER", "?")
+          reporter     = os.environ.get("ISSUE_USER", "unknown")
+
+          DB_FILE      = "seen_db.json"
+          REPORT_FILE  = "community_reports_log.txt"
+          RESULT_FILE  = "community_result.txt"
+
+          # ── Schutzmechanismus: max. 5 Reports pro User pro Tag ─────────────
+          MAX_REPORTS_PER_USER = 5
+          today_count = 0
+          if os.path.exists(REPORT_FILE):
+              with open(REPORT_FILE) as f:
+                  for line in f:
+                      if f"{now_day}" in line and f"user={reporter}" in line and "ACCEPTED" in line:
+                          today_count += 1
+
+          if today_count >= MAX_REPORTS_PER_USER:
+              with open(RESULT_FILE, "w") as f:
+                  f.write(f"RATE_LIMITED|{reporter}|{today_count}")
+              print(f"Rate-Limit erreicht für {reporter}: {today_count} Reports heute")
+              exit(0)
+
+          # ── IP aus Issue-Body extrahieren ──────────────────────────────────
+          # Issue Template Feld: "### IP Address\n\n1.2.3.4"
+          ip = None
+          match = re.search(r"###\s*IP Address\s*\n+\s*([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})", issue_body)
+          if match:
+              ip = match.group(1).strip()
+          else:
+              # Fallback: erste IP im Body suchen
+              fallback = re.search(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b', issue_body)
+              if fallback:
+                  ip = fallback.group(1)
+
+          if not ip:
+              with open(RESULT_FILE, "w") as f:
+                  f.write("NO_IP_FOUND||")
+              print("Keine IP im Issue gefunden")
+              exit(0)
+
+          # ── IP validieren ─────────────────────────────────────────────────
+          DNS_WHITELIST = {
+              "8.8.8.8","8.8.4.4","1.1.1.1","1.0.0.1",
+              "208.67.222.222","208.67.220.220","9.9.9.9",
+              "149.112.112.112","94.140.14.14","94.140.15.15",
+          }
+
+          PROTECTED_CIDRS = [
+              "8.8.8.0/24","1.1.1.0/24","104.16.0.0/13",
+              "13.64.0.0/11","34.0.0.0/9",
+          ]
+
+          def is_valid_public_ipv4(ip_str):
+              try:
+                  obj = ipaddress.ip_address(ip_str)
+                  if obj.version != 4:                return False
+                  if obj.is_private:                  return False
+                  if obj.is_loopback:                 return False
+                  if obj.is_multicast:                return False
+                  if obj.is_unspecified:              return False
+                  if obj.is_reserved:                 return False
+                  if obj.is_link_local:               return False
+                  if ip_str in DNS_WHITELIST:         return False
+                  for cidr in PROTECTED_CIDRS:
+                      if obj in ipaddress.ip_network(cidr, strict=False):
+                          return False
+                  return True
+              except Exception:
+                  return False
+
+          if not is_valid_public_ipv4(ip):
+              with open(RESULT_FILE, "w") as f:
+                  f.write(f"INVALID_IP|{ip}|")
+              print(f"Ungültige IP: {ip}")
+              exit(0)
+
+          # ── Angriffs-Typ aus Issue extrahieren ────────────────────────────
+          attack_match = re.search(r"###\s*Attack Type\s*\n+\s*(.+)", issue_body)
+          attack_type  = attack_match.group(1).strip() if attack_match else "Unknown"
+
+          # ── seen_db laden ─────────────────────────────────────────────────
+          db = {}
+          if os.path.exists(DB_FILE):
+              try:
+                  with open(DB_FILE) as f:
+                      db = json.load(f)
+                  print(f"seen_db geladen: {len(db)} IPs")
+              except Exception:
+                  db = {}
+
+          # ── IP in seen_db eintragen / aktualisieren ───────────────────────
+          action = ""
+          if ip in db:
+              # IP existiert bereits → last_seen aktualisieren + community-Flag
+              db[ip]["last"]      = now_day
+              db[ip]["hq"]        = True   # Community-Bestätigung = HQ
+              db[ip]["community"] = db[ip].get("community", 0) + 1
+              action = "UPDATED"
+              print(f"IP {ip} bereits bekannt – auf HQ=True gesetzt, community+1")
+          else:
+              # Neue IP → neu eintragen mit community-Flag
+              db[ip] = {
+                  "first":     now_day,
+                  "last":      now_day,
+                  "hq":        False,   # Neu: erstmal watchlist, kein HQ
+                  "community": 1,
+              }
+              action = "NEW"
+              print(f"Neue IP {ip} als Community-Report eingetragen (Watchlist)")
+
+          # ── seen_db speichern ─────────────────────────────────────────────
+          with open(DB_FILE, "w") as f:
+              json.dump(db, f, separators=(",", ":"))
+
+          # ── Log-Eintrag ───────────────────────────────────────────────────
+          with open(REPORT_FILE, "a") as f:
+              f.write(f"{now_day} | issue=#{issue_number} | user={reporter} | ip={ip} | type={attack_type} | action={action} | ACCEPTED\n")
+
+          # ── Ergebnis für nächsten Step speichern ──────────────────────────
+          with open(RESULT_FILE, "w") as f:
+              f.write(f"{action}|{ip}|{attack_type}")
+
+          print(f"Fertig: {action} – IP {ip} ({attack_type})")
+          EOF
+
+      - name: Save seen_db Cache
+        uses: actions/cache@d4323d4df104b026a6aa633fef9e2dfab7b3d0eb # v4
+        with:
+          path: seen_db.json
+          key: netshield-seen-db-v1-${{ github.run_id }}
+
+      - name: Commit Log
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add community_reports_log.txt 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "Community Report #${{ github.event.issue.number }}: $(date -u '+%Y-%m-%d %H:%M') UTC"
+          git pull --rebase origin ${GITHUB_REF_NAME}
+          git push origin HEAD:${GITHUB_REF_NAME} 2>/dev/null || true
+
+      - name: Post Issue Comment & Close
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          script: |
+            const fs = require('fs');
+            const result = fs.readFileSync('community_result.txt', 'utf8').trim();
+            const [status, ip, attackType] = result.split('|');
+
+            let comment = '';
+            let shouldClose = true;
+
+            if (status === 'NEW') {
+              comment = `## ✅ Report Received\n\nThank you for your report!\n\n| Field | Value |\n|---|---|\n| **IP** | \`${ip}\` |\n| **Attack Type** | ${attackType} |\n| **Status** | Added to Watchlist |\n| **Next Step** | IP will be promoted to Blacklist when confirmed by other feeds |\n\n> 🔄 The next automated run will include this IP in the analysis.`;
+            } else if (status === 'UPDATED') {
+              comment = `## ✅ Report Confirmed\n\nThis IP was already in our database. Your report strengthens the confidence score.\n\n| Field | Value |\n|---|---|\n| **IP** | \`${ip}\` |\n| **Attack Type** | ${attackType} |\n| **Status** | Promoted to High-Quality (HQ) → Active Blacklist |\n\n> ⚡ This IP is now in the **Active Blacklist (Stufe 2)** and will be included in the next update.`;
+            } else if (status === 'INVALID_IP') {
+              comment = `## ❌ Invalid IP Address\n\nThe IP address \`${ip}\` could not be processed:\n- It may be a private, reserved, or protected IP\n- Please check the format and try again\n\nIf you believe this is an error, please open a new issue with a valid public IPv4 address.`;
+              shouldClose = false;
+            } else if (status === 'RATE_LIMITED') {
+              comment = `## ⚠️ Rate Limit Reached\n\nYou have submitted too many reports today. Please try again tomorrow.\n\n> Maximum: 5 reports per user per day`;
+            } else if (status === 'NO_IP_FOUND') {
+              comment = `## ❌ No IP Address Found\n\nWe could not extract an IP address from your report.\n\nPlease use the **Issue Template** and fill in the IP Address field correctly.`;
+              shouldClose = false;
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+
+            if (shouldClose) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                state: 'closed'
+              });
+            }
