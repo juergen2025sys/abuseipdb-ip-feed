@@ -1,0 +1,5 @@
+# ASN Reputation Blocklist – NETSHIELD
+# Aktualisiert: 2026-03-09 04:23 UTC
+# Format: AS<Nummer> # Score | Organisation | Land
+# Nur ASNs mit Score >= 50 werden gelistet
+
