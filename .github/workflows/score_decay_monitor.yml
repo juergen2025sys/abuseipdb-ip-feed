@@ -147,11 +147,17 @@ jobs:
           print("score_decay_report.md geschrieben")
           EOF
 
+      - name: Save seen_db Cache
+        uses: actions/cache@v4
+        with:
+          path: seen_db.json
+          key: netshield-seen-db-v1-${{ github.run_id }}
+
       - name: Commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add 
+          git add score_decay_log.txt score_decay_report.md combined_threat_blacklist_ipv4.txt
           if git diff --staged --quiet; then
             echo "Keine Änderungen"
           else

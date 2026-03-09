@@ -2,7 +2,7 @@ name: False Positive Checker
 
 on:
   schedule:
-    - cron: '0 5 * * 0'  # Sonntag 05:00 UTC  # wöchentlich Sonntag 05:00 UTC
+    - cron: '0 5 * * 0'  # wöchentlich Sonntag 05:00 UTC
   workflow_dispatch:
 
 permissions:

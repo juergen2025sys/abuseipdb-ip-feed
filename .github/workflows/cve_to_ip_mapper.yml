@@ -2,7 +2,7 @@ name: CVE-to-IP Mapper
 
 on:
   schedule:
-    - cron: '0 4 * * *'  # täglich 04:00 UTC  # täglich 04:00 UTC
+    - cron: '0 4 * * *'  # täglich 04:00 UTC
   workflow_dispatch:
 
 permissions:

@@ -122,7 +122,7 @@ jobs:
                   score += 5
 
               # Spamhaus DROP-Check: Prüfe ob IPs dieses ASN in DROP-CIDRs fallen
-              asn_sample_ips = [ip for ip in sample if str(fetch_json(f"https://api.iptoasn.com/v1/as/ip/{ip}", timeout=5) or {}).get("as_number","") == asn]
+              asn_sample_ips = [ip for ip in sample if str((fetch_json(f"https://api.iptoasn.com/v1/as/ip/{ip}", timeout=5) or {}).get("as_number","")) == asn]
               drop_hits = sum(1 for ip in asn_sample_ips[:5] if ip_in_cidrs(ip, drop_cidrs))
               if drop_hits > 0:
                   score += 20
