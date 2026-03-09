@@ -1,0 +1,1234 @@
+{
+  "updated": "2026-03-09 16:53 UTC",
+  "summary": {
+    "ok": 120,
+    "warn": 3,
+    "error": 13
+  },
+  "feeds": [
+    {
+      "name": "4ip_high_security",
+      "url": "https://raw.githubusercontent.com/4IP-Solutions/threat-feeds/refs/heads/main/blocklist-incoming-ip-high-security.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4541,
+      "ms": 200
+    },
+    {
+      "name": "abuseipdb_axllent",
+      "url": "https://raw.githubusercontent.com/axllent/iplists/master/lists/abuseipdb-30d.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4478,
+      "ms": 210
+    },
+    {
+      "name": "abuseipdb_s100_30d",
+      "url": "https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/main/abuseipdb-s100-30d.ipv4",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 1111,
+      "ms": 190
+    },
+    {
+      "name": "abuseipdb_score100",
+      "url": "https://raw.githubusercontent.com/LittleJake/ip-blacklist/refs/heads/main/abuseipdb_blacklist_ip_score_100.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4669,
+      "ms": 50
+    },
+    {
+      "name": "abuseipdb_score75",
+      "url": "https://raw.githubusercontent.com/LittleJake/ip-blacklist/refs/heads/main/abuseipdb_blacklist_ip_score_75.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4669,
+      "ms": 60
+    },
+    {
+      "name": "abuseipdb_scriptzteam",
+      "url": "https://raw.githubusercontent.com/scriptzteam/AbuseIPDB-BlackList/refs/heads/main/abuseipdb_blacklist.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4800,
+      "ms": 70
+    },
+    {
+      "name": "abuseipdb_tmiland",
+      "url": "https://abuseipdb.tmiland.com/abuseipdb.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4545,
+      "ms": 930
+    },
+    {
+      "name": "alienvault",
+      "url": "https://reputation.alienvault.com/reputation.generic",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 609,
+      "ms": 220
+    },
+    {
+      "name": "amitambekar_threats",
+      "url": "https://raw.githubusercontent.com/amitambekar510/Malicious-IP-Threat-List/refs/heads/main/Malicious-IP-Threat-List.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4828,
+      "ms": 70
+    },
+    {
+      "name": "amitambekar_threats_aa",
+      "url": "https://raw.githubusercontent.com/amitambekar510/Malicious-IP-Threat-List/main/Malicious-IP-Threat-List_aa",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4458,
+      "ms": 70
+    },
+    {
+      "name": "bbcan177",
+      "url": "https://gist.githubusercontent.com/BBcan177/d7105c242f17f4498f81/raw",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 1383,
+      "ms": 60
+    },
+    {
+      "name": "bdix_prefix_ipv4",
+      "url": "https://raw.githubusercontent.com/tushroy/bdix-isp-blocks/refs/heads/master/bdix-prefix_ipv4.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 3858,
+      "ms": 100
+    },
+    {
+      "name": "binary_defense",
+      "url": "https://binarydefense.com/banlist.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 1772,
+      "ms": 380
+    },
+    {
+      "name": "binaryedge_scanners",
+      "url": "https://raw.githubusercontent.com/stamparm/maltrail/master/trails/static/mass_scanner.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 1381,
+      "ms": 110
+    },
+    {
+      "name": "black_mirror",
+      "url": "https://github.com/T145/black-mirror/releases/download/latest/BLOCK_IPV4.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4495,
+      "ms": 190
+    },
+    {
+      "name": "blacksnowdot_packets",
+      "url": "https://raw.githubusercontent.com/BlacKSnowDot0/packetsdatabase-db/refs/heads/main/ip_list.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 1634,
+      "ms": 340
+    },
+    {
+      "name": "blocklist_de_all",
+      "url": "https://lists.blocklist.de/lists/all.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4478,
+      "ms": 160
+    },
+    {
+      "name": "blocklist_de_apache",
+      "url": "https://lists.blocklist.de/lists/apache.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4437,
+      "ms": 120
+    },
+    {
+      "name": "blocklist_de_export",
+      "url": "https://www.blocklist.de/downloads/export-ips_all.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4478,
+      "ms": 150
+    },
+    {
+      "name": "blocklist_de_ftp",
+      "url": "https://lists.blocklist.de/lists/ftp.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 639,
+      "ms": 80
+    },
+    {
+      "name": "blocklist_de_getlast",
+      "url": "https://api.blocklist.de/getlast.php?time=43200",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4532,
+      "ms": 710
+    },
+    {
+      "name": "blocklist_de_imap",
+      "url": "https://lists.blocklist.de/lists/imap.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 3876,
+      "ms": 110
+    },
+    {
+      "name": "blocklist_de_mail",
+      "url": "https://lists.blocklist.de/lists/mail.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4542,
+      "ms": 130
+    },
+    {
+      "name": "blocklist_de_ssh",
+      "url": "https://lists.blocklist.de/lists/ssh.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4469,
+      "ms": 130
+    },
+    {
+      "name": "blocklist_de_strongips",
+      "url": "https://lists.blocklist.de/lists/strongips.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 311,
+      "ms": 120
+    },
+    {
+      "name": "bluetack_blacklist",
+      "url": "https://raw.githubusercontent.com/actuallymentor/bluetack-ip-blacklist-generator/refs/heads/master/blacklist",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4046,
+      "ms": 360
+    },
+    {
+      "name": "c2_iplist",
+      "url": "https://raw.githubusercontent.com/drb-ra/C2IntelFeeds/master/feeds/IPC2s.csv",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 139,
+      "ms": 80
+    },
+    {
+      "name": "c2_tracker",
+      "url": "https://raw.githubusercontent.com/montysecurity/C2-Tracker/main/data/all.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 2377,
+      "ms": 10
+    },
+    {
+      "name": "cinsarmy",
+      "url": "https://cinsarmy.com/list/ci-badguys.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4830,
+      "ms": 240
+    },
+    {
+      "name": "cinsscore",
+      "url": "https://cinsscore.com/list/ci-badguys.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4830,
+      "ms": 320
+    },
+    {
+      "name": "cloudzy",
+      "url": "https://raw.githubusercontent.com/CriticalPathSecurity/Public-Intelligence-Feeds/refs/heads/master/cloudzy.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 3578,
+      "ms": 40
+    },
+    {
+      "name": "crowdsec_ssh",
+      "url": "https://raw.githubusercontent.com/Y3ll0w/CrowdSec-CAPI-Decisions/refs/heads/main/ssh-bf.json.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 298,
+      "ms": 240
+    },
+    {
+      "name": "cyna_malicious",
+      "url": "https://raw.githubusercontent.com/cybersecurity-cyna/Malicious_IP/refs/heads/main/ip-list.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 3385,
+      "ms": 60
+    },
+    {
+      "name": "danger_bruteforce",
+      "url": "https://danger.rulez.sk/projects/bruteforceblocker/blist.php",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 572,
+      "ms": 1420
+    },
+    {
+      "name": "data_shield",
+      "url": "https://raw.githubusercontent.com/duggytuxy/Data-Shield_IPv4_Blocklist/refs/heads/main/prod_data-shield_ipv4_blocklist.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4891,
+      "ms": 210
+    },
+    {
+      "name": "dc_123jjck_cdn",
+      "url": "https://raw.githubusercontent.com/123jjck/cdn-ip-ranges/refs/heads/main/all/all_plain_ipv4.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4184,
+      "ms": 100
+    },
+    {
+      "name": "dc_axpwx_all_cidr",
+      "url": "https://raw.githubusercontent.com/axpwx/IP-Data/refs/heads/master/provider/all-cidr-ipv4.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4369,
+      "ms": 80
+    },
+    {
+      "name": "dc_disposable_providers",
+      "url": "https://raw.githubusercontent.com/disposable/cloud-ip-ranges/refs/heads/master/txt/all-providers.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4335,
+      "ms": 130
+    },
+    {
+      "name": "dc_furry_vps",
+      "url": "https://raw.githubusercontent.com/the-furry-hubofeverything/vps-ranges/refs/heads/main/ip.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 3516,
+      "ms": 60
+    },
+    {
+      "name": "dc_hexydec_datacentres",
+      "url": "https://raw.githubusercontent.com/hexydec/ip-ranges/main/output/datacentres.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4236,
+      "ms": 60
+    },
+    {
+      "name": "dc_jhassine_datacenters",
+      "url": "https://raw.githubusercontent.com/jhassine/server-ip-addresses/master/data/datacenters.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4298,
+      "ms": 160
+    },
+    {
+      "name": "dc_josephrocca_vpn",
+      "url": "https://raw.githubusercontent.com/josephrocca/is-vpn/refs/heads/main/vpn-or-datacenter-ipv4-ranges.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4392,
+      "ms": 70
+    },
+    {
+      "name": "dc_painless_all_ipv4",
+      "url": "https://raw.githubusercontent.com/painlessanalytics/datacenter-cloud-ip-lists/refs/heads/main/lists/asn/all-ipv4.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4061,
+      "ms": 60
+    },
+    {
+      "name": "ddrimus_http_threats",
+      "url": "https://raw.githubusercontent.com/ddrimus/http-threat-blocklist/refs/heads/main/blocklist.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 366,
+      "ms": 70
+    },
+    {
+      "name": "dolutech_blacklist",
+      "url": "https://raw.githubusercontent.com/dolutech/blacklist-dolutech/refs/heads/main/Black-list-semanal-dolutech.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4299,
+      "ms": 170
+    },
+    {
+      "name": "dshield",
+      "url": "https://www.dshield.org/block.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 40,
+      "ms": 180
+    },
+    {
+      "name": "edanwong",
+      "url": "https://raw.githubusercontent.com/EdanWong/ip_list/refs/heads/main/my_ips.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 2003,
+      "ms": 60
+    },
+    {
+      "name": "et_block",
+      "url": "https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 1548,
+      "ms": 170
+    },
+    {
+      "name": "et_compromised",
+      "url": "https://rules.emergingthreats.net/blockrules/compromised-ips.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 555,
+      "ms": 130
+    },
+    {
+      "name": "f3csystems",
+      "url": "https://raw.githubusercontent.com/f3csystems/BlockList_IP/refs/heads/main/blacklist.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 3105,
+      "ms": 120
+    },
+    {
+      "name": "feodo_aggressive",
+      "url": "https://feodotracker.abuse.ch/downloads/ipblocklist_aggressive.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4164,
+      "ms": 240
+    },
+    {
+      "name": "feodo_recommended",
+      "url": "https://feodotracker.abuse.ch/downloads/ipblocklist.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 5,
+      "ms": 230
+    },
+    {
+      "name": "firehol_abusers_1d",
+      "url": "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_abusers_1d.netset",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4550,
+      "ms": 80
+    },
+    {
+      "name": "firehol_anonymous",
+      "url": "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_anonymous.netset",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 5530,
+      "ms": 470
+    },
+    {
+      "name": "firehol_cybercrime",
+      "url": "https://raw.githubusercontent.com/firehol/blocklist-ipsets/refs/heads/master/cybercrime.ipset",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 216,
+      "ms": 50
+    },
+    {
+      "name": "firehol_level1",
+      "url": "https://iplists.firehol.org/files/firehol_level1.netset",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4118,
+      "ms": 190
+    },
+    {
+      "name": "firehol_level2",
+      "url": "https://iplists.firehol.org/files/firehol_level2.netset",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4731,
+      "ms": 170
+    },
+    {
+      "name": "firehol_level3",
+      "url": "https://iplists.firehol.org/files/firehol_level3.netset",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4722,
+      "ms": 150
+    },
+    {
+      "name": "firehol_level4",
+      "url": "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level4.netset",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4801,
+      "ms": 160
+    },
+    {
+      "name": "firehol_proxies",
+      "url": "https://iplists.firehol.org/files/firehol_proxies.netset",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 5525,
+      "ms": 120
+    },
+    {
+      "name": "firehol_webclient",
+      "url": "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_webclient.netset",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 216,
+      "ms": 50
+    },
+    {
+      "name": "firehol_webserver",
+      "url": "https://iplists.firehol.org/files/firehol_webserver.netset",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 738,
+      "ms": 130
+    },
+    {
+      "name": "florent_banned",
+      "url": "https://raw.githubusercontent.com/florentvinai/bad-ips-on-my-vps/refs/heads/main/banned_ips.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4565,
+      "ms": 230
+    },
+    {
+      "name": "fortigate_azure",
+      "url": "https://raw.githubusercontent.com/IT3ngineer/FortigateBlockList/refs/heads/main/AzureBlockListIPs.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 45,
+      "ms": 100
+    },
+    {
+      "name": "freakuency_threatfeed",
+      "url": "https://raw.githubusercontent.com/FreakuencyFive/Public-IP-ThreatFeed/refs/heads/main/blacklist.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4075,
+      "ms": 160
+    },
+    {
+      "name": "fullbogons_ipv4",
+      "url": "https://www.team-cymru.org/Services/Bogons/fullbogons-ipv4.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 2907,
+      "ms": 100
+    },
+    {
+      "name": "geo_cis",
+      "url": "https://raw.githubusercontent.com/antonme/GeoIP/refs/heads/master/cis.ipv4.cidr.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4339,
+      "ms": 80
+    },
+    {
+      "name": "geo_cn",
+      "url": "https://raw.githubusercontent.com/antonme/GeoIP/refs/heads/master/cn.ipv4.cidr.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4246,
+      "ms": 70
+    },
+    {
+      "name": "geo_europe",
+      "url": "https://raw.githubusercontent.com/antonme/GeoIP/refs/heads/master/europe.ipv4.cidr.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4466,
+      "ms": 50
+    },
+    {
+      "name": "geo_russia",
+      "url": "https://raw.githubusercontent.com/antonme/GeoIP/refs/heads/master/russia.ipv4.cidr.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4327,
+      "ms": 60
+    },
+    {
+      "name": "geo_us",
+      "url": "https://raw.githubusercontent.com/antonme/GeoIP/refs/heads/master/us.ipv4.cidr.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4447,
+      "ms": 60
+    },
+    {
+      "name": "greensnow",
+      "url": "https://blocklist.greensnow.co/greensnow.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4571,
+      "ms": 890
+    },
+    {
+      "name": "interserver",
+      "url": "https://sigs.interserver.net/ip.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 1185,
+      "ms": 630
+    },
+    {
+      "name": "ipsum_level3",
+      "url": "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/3.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4593,
+      "ms": 10
+    },
+    {
+      "name": "ipsum_level5",
+      "url": "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/5.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 3945,
+      "ms": 20
+    },
+    {
+      "name": "ipsum_level7",
+      "url": "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/7.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 146,
+      "ms": 10
+    },
+    {
+      "name": "ipsum_master",
+      "url": "https://raw.githubusercontent.com/stamparm/ipsum/refs/heads/master/ipsum.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 3995,
+      "ms": 240
+    },
+    {
+      "name": "kevinmarx",
+      "url": "https://kevinmarx.org/malicious-ip-list.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 70,
+      "ms": 230
+    },
+    {
+      "name": "l7_ddos",
+      "url": "https://raw.githubusercontent.com/Tizian-Maxime-Weigt/L7-HTTP-DDoS-Flood-IP-Signature-IP-List/refs/heads/main/ddos-signatures.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 1138,
+      "ms": 260
+    },
+    {
+      "name": "littlejake_all_blacklist",
+      "url": "https://cdn.jsdelivr.net/gh/LittleJake/ip-blacklist/all_blacklist.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4425,
+      "ms": 30
+    },
+    {
+      "name": "magicteamc_bad_ips",
+      "url": "https://raw.githubusercontent.com/MagicTeaMC/bad-ips/refs/heads/main/bad-ips.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4834,
+      "ms": 300
+    },
+    {
+      "name": "netmountains_blocklist",
+      "url": "https://raw.githubusercontent.com/NETMOUNTAINS/Curated-IP-Blocklist/main/ip-blacklist.list",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4936,
+      "ms": 210
+    },
+    {
+      "name": "nixbear_malicious",
+      "url": "https://raw.githubusercontent.com/nixbear/malicious_ips/refs/heads/main/malicious_ips.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4537,
+      "ms": 70
+    },
+    {
+      "name": "openphish",
+      "url": "https://openphish.com/feed.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 1,
+      "ms": 550
+    },
+    {
+      "name": "pgl_yoyo_adservers",
+      "url": "https://pgl.yoyo.org/adservers/iplist.php?format=&showintro=0",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4482,
+      "ms": 910
+    },
+    {
+      "name": "phishing_army",
+      "url": "https://phishing.army/download/phishing_army_blocklist.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": false,
+      "sample_ips": 0,
+      "ms": 210
+    },
+    {
+      "name": "romainmarcoux_aa",
+      "url": "https://raw.githubusercontent.com/romainmarcoux/malicious-ip/main/full-300k-aa.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4661,
+      "ms": 20
+    },
+    {
+      "name": "romainmarcoux_ab",
+      "url": "https://raw.githubusercontent.com/romainmarcoux/malicious-ip/main/full-300k-ab.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4581,
+      "ms": 10
+    },
+    {
+      "name": "romainmarcoux_ac",
+      "url": "https://raw.githubusercontent.com/romainmarcoux/malicious-ip/main/full-300k-ac.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": false,
+      "sample_ips": 0,
+      "ms": 10
+    },
+    {
+      "name": "romainmarcoux_outgoing_aa",
+      "url": "https://raw.githubusercontent.com/romainmarcoux/malicious-outgoing-ip/main/full-outgoing-ip-aa.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4686,
+      "ms": 30
+    },
+    {
+      "name": "romainmarcoux_outgoing_ab",
+      "url": "https://raw.githubusercontent.com/romainmarcoux/malicious-outgoing-ip/main/full-outgoing-ip-ab.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4403,
+      "ms": 30
+    },
+    {
+      "name": "rtbh_output",
+      "url": "https://list.rtbh.com.tr/output.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4889,
+      "ms": 980
+    },
+    {
+      "name": "sefinek_malicious",
+      "url": "https://raw.githubusercontent.com/sefinek/Malicious-IP-Addresses/main/lists/main.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 5021,
+      "ms": 230
+    },
+    {
+      "name": "shadowwhisperer_hackers",
+      "url": "https://raw.githubusercontent.com/ShadowWhisperer/IPs/refs/heads/master/Malware/Hackers",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4582,
+      "ms": 60
+    },
+    {
+      "name": "spamhaus_drop",
+      "url": "https://www.spamhaus.org/drop/drop.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 1532,
+      "ms": 90
+    },
+    {
+      "name": "spamhaus_edrop",
+      "url": "https://www.spamhaus.org/drop/edrop.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": false,
+      "sample_ips": 0,
+      "ms": 70
+    },
+    {
+      "name": "stopforumspam_toxic",
+      "url": "https://www.stopforumspam.com/downloads/toxic_ip_cidr.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 56,
+      "ms": 70
+    },
+    {
+      "name": "subnet_blocklist_new",
+      "url": "https://raw.githubusercontent.com/coyote-nl/blocklist/refs/heads/main/subnet-blocklist-new",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4080,
+      "ms": 80
+    },
+    {
+      "name": "threatfox_ioc",
+      "url": "https://raw.githubusercontent.com/elliotwutingfeng/ThreatFox-IOC-IPs/refs/heads/main/ips.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4891,
+      "ms": 230
+    },
+    {
+      "name": "threatview_high_conf",
+      "url": "https://threatview.io/Downloads/IP-High-Confidence-Feed.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4448,
+      "ms": 930
+    },
+    {
+      "name": "tor_critpath",
+      "url": "https://raw.githubusercontent.com/CriticalPathSecurity/Public-Intelligence-Feeds/refs/heads/master/tor-exit.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 1199,
+      "ms": 30
+    },
+    {
+      "name": "tor_danme",
+      "url": "https://www.dan.me.uk/torlist/",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 2975,
+      "ms": 1270
+    },
+    {
+      "name": "tor_enkidu",
+      "url": "https://raw.githubusercontent.com/Enkidu-6/tor-relay-lists/main/relays-v4.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 3745,
+      "ms": 40
+    },
+    {
+      "name": "tor_neblink",
+      "url": "https://www.neblink.net/blocklist/TorExitNodes.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 1225,
+      "ms": 210
+    },
+    {
+      "name": "tor_project_bulk",
+      "url": "https://check.torproject.org/torbulkexitlist",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 1199,
+      "ms": 480
+    },
+    {
+      "name": "tor_secops",
+      "url": "https://raw.githubusercontent.com/SecOps-Institute/Tor-IP-Addresses/master/tor-exit-nodes.lst",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 1127,
+      "ms": 10
+    },
+    {
+      "name": "trcert_malware",
+      "url": "https://raw.githubusercontent.com/cenk/trcert-malware/refs/heads/main/trcert-ips.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4453,
+      "ms": 330
+    },
+    {
+      "name": "turris_greylist",
+      "url": "https://view.sentinel.turris.cz/greylist-data/greylist-latest.csv",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 2449,
+      "ms": 840
+    },
+    {
+      "name": "ufukart_blacklist",
+      "url": "https://raw.githubusercontent.com/ufukart/Blacklist/main/blacklist.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 5198,
+      "ms": 240
+    },
+    {
+      "name": "ultimate_hosts_ips0",
+      "url": "https://raw.githubusercontent.com/Ultimate-Hosts-Blacklist/Ultimate.Hosts.Blacklist/refs/heads/master/ips/ips0.list",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 5185,
+      "ms": 230
+    },
+    {
+      "name": "urlhaus_ips",
+      "url": "https://urlhaus.abuse.ch/downloads/text/",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 320,
+      "ms": 50
+    },
+    {
+      "name": "vpn_antonme_hosts",
+      "url": "https://raw.githubusercontent.com/antonme/ipnames/refs/heads/master/ext-resolve-vpnhosts.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4591,
+      "ms": 80
+    },
+    {
+      "name": "vpn_expressvpn",
+      "url": "https://raw.githubusercontent.com/antonme/ipranges/refs/heads/main/expressvpn/ipv4.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 1900,
+      "ms": 70
+    },
+    {
+      "name": "vpn_nazgulcoder",
+      "url": "https://raw.githubusercontent.com/NazgulCoder/IPLists/main/output/vpn-ipv4.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4032,
+      "ms": 60
+    },
+    {
+      "name": "vpn_nordvpn_antonme",
+      "url": "https://raw.githubusercontent.com/antonme/ipranges/refs/heads/main/nordvpn/ipv4.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4665,
+      "ms": 60
+    },
+    {
+      "name": "vpn_nordvpn_jamoca",
+      "url": "https://gist.githubusercontent.com/JamoCA/eedaf4f7cce1cb0aeb5c1039af35f0b7/raw/cb6568528820c09e94cac7ef3461bc6cbf792e7e/NordVPN-Server-IP-List.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4368,
+      "ms": 180
+    },
+    {
+      "name": "vpn_oooninja",
+      "url": "https://az0-vpnip-public.oooninja.com/ip.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 2681,
+      "ms": 260
+    },
+    {
+      "name": "vpn_protonvpn",
+      "url": "https://raw.githubusercontent.com/tn3w/ProtonVPN-IPs/refs/heads/master/protonvpn_ips.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 2282,
+      "ms": 60
+    },
+    {
+      "name": "vpn_surfshark",
+      "url": "https://raw.githubusercontent.com/antonme/ipranges/refs/heads/main/surfshark/ipv4.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 2481,
+      "ms": 50
+    },
+    {
+      "name": "vpn_tunnelbear",
+      "url": "https://raw.githubusercontent.com/tn3w/TunnelBear-IPs/refs/heads/master/tunnelbear_ips.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4586,
+      "ms": 60
+    },
+    {
+      "name": "vpn_windscribe",
+      "url": "https://raw.githubusercontent.com/coocoobau/vpn-ip-lists/refs/heads/main/windscribevpn-ips.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 1199,
+      "ms": 80
+    },
+    {
+      "name": "vpn_x4bnet",
+      "url": "https://raw.githubusercontent.com/X4BNet/lists_vpn/refs/heads/main/ipv4.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4444,
+      "ms": 60
+    },
+    {
+      "name": "zerof_ipextractor",
+      "url": "https://raw.githubusercontent.com/ZEROF/ipextractor/refs/heads/main/ipexdbl.txt",
+      "status": 200,
+      "ok": true,
+      "has_ips": true,
+      "sample_ips": 4643,
+      "ms": 210
+    },
+    {
+      "name": "abuseipdb_s90_30d",
+      "url": "https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/main/abuseipdb-s90-30d.ipv4",
+      "status": 404,
+      "ok": false,
+      "has_ips": false,
+      "sample_ips": 0,
+      "ms": 88
+    },
+    {
+      "name": "bazaar_c2",
+      "url": "https://bazaar.abuse.ch/export/txt/cscb/recent/",
+      "status": 404,
+      "ok": false,
+      "has_ips": false,
+      "sample_ips": 0,
+      "ms": 48
+    },
+    {
+      "name": "bitwire_ipblocklist",
+      "url": "https://raw.githubusercontent.com/bitwire-it/ipblocklist/refs/heads/main/ip-list.txt",
+      "status": 404,
+      "ok": false,
+      "has_ips": false,
+      "sample_ips": 0,
+      "ms": 34
+    },
+    {
+      "name": "cobalt_strike_ips",
+      "url": "https://raw.githubusercontent.com/Gi7w0rm/CobaltStrikeC2Tracker/main/lists/IPs.txt",
+      "status": 404,
+      "ok": false,
+      "has_ips": false,
+      "sample_ips": 0,
+      "ms": 43
+    },
+    {
+      "name": "duggytuxy_agr",
+      "url": "https://raw.githubusercontent.com/duggytuxy/malicious_ip_addresses/main/botnets_zombies_scanners_spam_ips.txt",
+      "status": 404,
+      "ok": false,
+      "has_ips": false,
+      "sample_ips": 0,
+      "ms": 48
+    },
+    {
+      "name": "eset_apr",
+      "url": "https://raw.githubusercontent.com/elliotwutingfeng/ESET-APR-IPs/main/ips.txt",
+      "status": 404,
+      "ok": false,
+      "has_ips": false,
+      "sample_ips": 0,
+      "ms": 46
+    },
+    {
+      "name": "gridinsoft",
+      "url": "https://raw.githubusercontent.com/GridinSoft/IP-Blocklist/main/ip-blocklist.txt",
+      "status": 404,
+      "ok": false,
+      "has_ips": false,
+      "sample_ips": 0,
+      "ms": 41
+    },
+    {
+      "name": "honeypot_blocklist",
+      "url": "https://raw.githubusercontent.com/yuexuana521/honeypot-blocklist/refs/heads/main/ip_list.txt",
+      "status": 404,
+      "ok": false,
+      "has_ips": false,
+      "sample_ips": 0,
+      "ms": 37
+    },
+    {
+      "name": "mrlooker_threats",
+      "url": "https://raw.githubusercontent.com/mrlooker/Suspicious-IPs/main/IPs.txt",
+      "status": 404,
+      "ok": false,
+      "has_ips": false,
+      "sample_ips": 0,
+      "ms": 40
+    },
+    {
+      "name": "normshield_ssh",
+      "url": "https://iplists.firehol.org/files/normshield_all_ssh.ipset",
+      "status": 404,
+      "ok": false,
+      "has_ips": false,
+      "sample_ips": 0,
+      "ms": 34
+    },
+    {
+      "name": "shodan_scanners",
+      "url": "https://raw.githubusercontent.com/jgamblin/Shodan-Malware-Scanning-IPs/master/malware_ips.txt",
+      "status": 404,
+      "ok": false,
+      "has_ips": false,
+      "sample_ips": 0,
+      "ms": 56
+    },
+    {
+      "name": "spamhaus_pbl",
+      "url": "https://raw.githubusercontent.com/elliotwutingfeng/Spamhaus-DNSBL-IPs/main/pbl.txt",
+      "status": 404,
+      "ok": false,
+      "has_ips": false,
+      "sample_ips": 0,
+      "ms": 127
+    },
+    {
+      "name": "talos_intelligence",
+      "url": "https://talosintelligence.com/documents/ip-blacklist",
+      "status": 404,
+      "ok": false,
+      "has_ips": false,
+      "sample_ips": 0,
+      "ms": 384
+    }
+  ]
+}
