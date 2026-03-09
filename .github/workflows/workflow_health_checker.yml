@@ -97,6 +97,95 @@ jobs:
               if "git commit" in content and "git add" not in content:
                   warnings.append("git commit ohne vorheriges git add gefunden")
 
+              # ── git add ohne Argumente ───────────────────────────────────
+              for i, line in enumerate(lines, 1):
+                  stripped = line.strip()
+                  if stripped == "git add" or stripped == "git add ":
+                      errors.append(f"Zeile {i}: `git add` ohne Argumente – keine Datei wird gestaged, Commit ist leer")
+
+              # ── python3 -c mit mehrzeiligem Code (YAML-Syntaxfehler) ────
+              for i, line in enumerate(lines, 1):
+                  stripped = line.strip()
+                  if stripped.startswith("python3 -c") and (stripped.endswith('"') is False or stripped.count('"') < 2):
+                      if stripped.endswith('"') is False:
+                          errors.append(f"Zeile {i}: `python3 -c \"...` mit mehrzeiligem Code – YAML-Syntaxfehler, bitte `python3 << 'EOF'` verwenden")
+
+              # ── Heredoc (EOF/PYEOF) ohne korrekte Einrückung ─────────────
+              in_heredoc = False
+              heredoc_indent = 0
+              for i, line in enumerate(lines, 1):
+                  stripped = line.strip()
+                  if re.search(r"<<\s*'[A-Z]+EOF[A-Z]*'", line) or re.search(r'<<\s*"[A-Z]+EOF[A-Z]*"', line):
+                      in_heredoc = True
+                      heredoc_indent = len(line) - len(line.lstrip())
+                      continue
+                  if in_heredoc:
+                      if re.match(r'^[A-Z]*EOF[A-Z]*\s*$', stripped):
+                          in_heredoc = False
+                          continue
+                      if line.strip() and not line.startswith(" " * max(heredoc_indent, 1)):
+                          errors.append(f"Zeile {i}: Heredoc-Inhalt ohne Einrückung – YAML-Syntaxfehler (mindestens {heredoc_indent} Leerzeichen erwartet)")
+                          in_heredoc = False
+
+              # ── str(dict).get() – AttributeError ────────────────────────
+              for i, line in enumerate(lines, 1):
+                  if re.search(r'str\s*\(.*\)\s*\.get\s*\(', line):
+                      errors.append(f"Zeile {i}: `str(...).get(...)` – str hat kein .get(), führt zu AttributeError. Korrekt: `(dict_expr).get(...)`")
+
+              # ── seen_db wird modifiziert aber Cache nicht gespeichert ────
+              modifies_seen_db = any(
+                  re.search(r'(del db\[|db\.pop\(|json\.dump\(db)', line)
+                  for line in lines
+              )
+              has_cache_save = "actions/cache" in content and (
+                  "github.run_id" in content or "save" in content.lower()
+              )
+              # Nur warnen wenn seen_db modifiziert wird aber kein Cache-Save-Step vorhanden
+              if modifies_seen_db and "github.run_id" not in content:
+                  errors.append("seen_db.json wird modifiziert, aber kein `Save seen_db Cache`-Step mit `github.run_id` gefunden – Änderungen gehen beim nächsten Run verloren")
+
+              # ── Doppelte Cron-Kommentare ─────────────────────────────────
+              for i, line in enumerate(lines, 1):
+                  if "cron:" in line and line.count("#") >= 2:
+                      warnings.append(f"Zeile {i}: Doppelter Kommentar im Cron-Eintrag – bitte bereinigen")
+
+              # ── IP-Sort ohne numerischen Key (lexikografisch falsch) ─────
+              for i, line in enumerate(lines, 1):
+                  stripped = line.strip()
+                  if re.search(r'\bsorted\s*\(\s*(all_ips|ips|blacklist_ips|final_ips|active_ips)\s*\)', stripped):
+                      warnings.append(f"Zeile {i}: `sorted(ips)` ohne `key=` – lexikografische Sortierung, nicht numerisch (z.B. '10.x' < '2.x'). Korrekt: `sorted(ips, key=lambda ip: tuple(int(o) for o in ip.split('.')))`")
+                  if re.search(r'active\w*\.sort\(\)\s*$', stripped) or re.search(r'active_ips\.sort\(\)\s*$', stripped):
+                      warnings.append(f"Zeile {i}: `.sort()` ohne `key=` auf IP-Liste – lexikografisch statt numerisch")
+
+              # ── HTTP-Calls in List-Comprehension ohne Rate-Limiting ──────
+              for i, line in enumerate(lines, 1):
+                  if re.search(r'for\s+\w+\s+in\s+\w+.*if.*fetch', line) or \
+                     re.search(r'\[.*fetch.*for\s+\w+\s+in', line):
+                      warnings.append(f"Zeile {i}: HTTP-Call in List-Comprehension – kein Rate-Limiting möglich, kann zu API-Sperren führen. Besser: explizite Schleife mit `time.sleep()`")
+
+              # ── open() ohne encoding auf Textdateien ─────────────────────
+              for i, line in enumerate(lines, 1):
+                  if re.search(r'open\s*\([^)]*["\'](?:w|a)["\']', line):
+                      if 'encoding' not in line and re.search(r'\.(md|txt|csv)\b', line):
+                          warnings.append(f"Zeile {i}: `open()` ohne `encoding=\"utf-8\"` für Textdatei – kann auf manchen Systemen zu Fehlern führen")
+
+              # ── Kein concurrency-Block ────────────────────────────────────
+              if "concurrency:" not in content:
+                  warnings.append("Kein `concurrency:`-Block – gleichzeitige schedule+manuell Runs können sich gegenseitig überschreiben")
+
+              # ── exit() vs sys.exit() gemischt ────────────────────────────
+              has_bare_exit = bool(re.search(r'(?<!sys\.)\bexit\s*\(\s*[01]\s*\)', content))
+              has_sys_exit  = bool(re.search(r'\bsys\.exit\s*\(', content))
+              if has_bare_exit and has_sys_exit:
+                  warnings.append("`exit()` und `sys.exit()` gemischt verwendet – einheitlich `sys.exit()` bevorzugen")
+
+              # ── Irreführende Kommentare (Kommentar ≠ Code) ───────────────
+              for i, line in enumerate(lines, 1):
+                  if "Top-500" in line or "top-500" in line:
+                      context = "\n".join(lines[max(0, i-5):i+5])
+                      if "[:500]" not in context:
+                          warnings.append(f"Zeile {i}: Kommentar erwähnt 'Top-500' aber kein `[:500]`-Slice im Code – irreführend, prüfen ob wirklich alle IPs gemeint sind")
+
               status = "❌ FEHLER" if errors else ("⚠️ WARNUNG" if warnings else "✅ OK")
               results.append({
                   "file":     name,
