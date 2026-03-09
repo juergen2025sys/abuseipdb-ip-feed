@@ -2,7 +2,7 @@ name: Tor Exit Node Monitor
 
 on:
   schedule:
-    - cron: '30 22 * * *'  # täglich 22:30 UTC (90min vor Combined um 0:00)
+    - cron: '30 23 * * *'   # täglich 23:30 UTC (30 Min vor Combined um 00:00)
   workflow_dispatch:
 
 permissions:
@@ -11,127 +11,82 @@ permissions:
 jobs:
   tor-monitor:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
         with:
           persist-credentials: true
 
-      - name: Fetch Tor Exit Nodes & Update Blacklist
+      - name: Fetch Tor Exit Nodes
         run: |
           python3 << 'EOF'
-          import urllib.request
-          import re
-          import os
-          import json
+          import urllib.request, re, os
           from datetime import datetime, timezone
 
-          now = datetime.now(timezone.utc)
+          now     = datetime.now(timezone.utc)
           now_str = now.strftime("%Y-%m-%d %H:%M UTC")
-          IP_RE = re.compile(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b')
+          IP_RE   = re.compile(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b')
 
           def fetch(url, timeout=30):
               try:
-                  req = urllib.request.Request(url, headers={"User-Agent": "NETSHIELD-TorMonitor/1.0"})
+                  req = urllib.request.Request(url, headers={"User-Agent": "NETSHIELD-TorMonitor/2.0"})
                   with urllib.request.urlopen(req, timeout=timeout) as r:
                       return r.read().decode("utf-8", errors="ignore")
               except Exception as e:
                   print(f"  FEHLER {url}: {e}")
                   return None
 
-          # ── Mehrere Tor-Exit-Quellen für maximale Abdeckung ───────────────
           TOR_SOURCES = {
-              "TorProject (offiziell)":
-                  "https://check.torproject.org/torbulkexitlist",
-              "Dan.me.uk Exit List":
-                  "https://www.dan.me.uk/torlist/?exit",
-              "SecOps Institute":
-                  "https://raw.githubusercontent.com/SecOps-Institute/Tor-IP-Addresses/master/tor-exit-nodes.lst",
-              "SNORT Tor Feed":
-                  "https://raw.githubusercontent.com/ktsaou/blocklist-ipsets/master/tor_exits_1d.ipset",
-              "Ultimate Hosts":
-                  "https://raw.githubusercontent.com/Ultimate-Hosts-Blacklist/TheRealUltimates_tor-exit-nodes/master/domains.list",
-              "Ipsum Tor":
-                  "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/3.txt",
+              "tor_project_bulk": "https://check.torproject.org/torbulkexitlist",
+              "tor_danme":        "https://www.dan.me.uk/torlist/",
+              "tor_critpath":     "https://raw.githubusercontent.com/CriticalPathSecurity/Public-Intelligence-Feeds/refs/heads/master/tor-exit.txt",
+              "tor_secops":       "https://raw.githubusercontent.com/SecOps-Institute/Tor-IP-Addresses/master/tor-exit-nodes.lst",
+              "tor_neblink":      "https://www.neblink.net/blocklist/TorExitNodes.txt",
+              "tor_enkidu":       "https://raw.githubusercontent.com/Enkidu-6/tor-relay-lists/main/relays-v4.txt",
           }
 
-          all_tor_ips = set()
-          source_stats = {}
-
+          all_ips = set()
+          stats   = {}
           for name, url in TOR_SOURCES.items():
               text = fetch(url)
               if text:
-                  ips = set(IP_RE.findall(text))
-                  # Private IPs rausfiltern
-                  ips = {ip for ip in ips if not (
-                      ip.startswith("10.") or ip.startswith("192.168.") or
-                      ip.startswith("127.") or ip.startswith("172.") or
-                      ip.startswith("0.") or ip.startswith("169.254.")
-                  )}
-                  all_tor_ips.update(ips)
-                  source_stats[name] = len(ips)
+                  ips = {ip for ip in IP_RE.findall(text)
+                         if not any(ip.startswith(p) for p in ("10.","192.168.","127.","0.","169.254."))}
+                  all_ips.update(ips)
+                  stats[name] = len(ips)
                   print(f"  {name}: {len(ips)} IPs")
               else:
-                  source_stats[name] = 0
+                  stats[name] = 0
 
-          print(f"\nGesamt einzigartige Tor-Exit-IPs: {len(all_tor_ips)}")
-
-          # ── Bestehende Tor-Liste laden & mergen ───────────────────────────
           TOR_FILE = "tor_exit_nodes.txt"
           existing = set()
           if os.path.exists(TOR_FILE):
               with open(TOR_FILE) as f:
                   existing = {l.strip() for l in f if l.strip() and not l.startswith("#")}
-              print(f"Bestehende Einträge: {len(existing)}")
 
-          new_ips     = all_tor_ips - existing
-          removed_ips = existing    - all_tor_ips  # nicht mehr aktive Exit-Nodes
-          final_ips   = sorted(all_tor_ips, key=lambda ip: tuple(int(o) for o in ip.split(".")))
+          new_ips     = all_ips - existing
+          removed_ips = existing - all_ips
+          final_ips   = sorted(all_ips, key=lambda ip: tuple(int(o) for o in ip.split(".")))
 
           with open(TOR_FILE, "w") as f:
-              f.write(f"# Tor Exit Node Blocklist – NETSHIELD\n")
+              f.write(f"# NETSHIELD Tor Exit Node Blocklist\n")
               f.write(f"# Aktualisiert: {now_str}\n")
-              f.write(f"# Quellen: {len(TOR_SOURCES)}\n")
-              f.write(f"# Gesamt Exit-Nodes: {len(final_ips)}\n")
-              f.write(f"# Neu: {len(new_ips)} | Entfernt: {len(removed_ips)}\n\n")
+              f.write(f"# Quellen: {len(TOR_SOURCES)} | Gesamt: {len(final_ips)} | +{len(new_ips)} neu | -{len(removed_ips)} entfernt\n\n")
               f.write("\n".join(final_ips) + "\n")
 
-          print(f"tor_exit_nodes.txt: {len(final_ips)} IPs | +{len(new_ips)} neu | -{len(removed_ips)} entfernt")
-
-          # Tor-IPs werden NICHT direkt in combined_threat_blacklist_ipv4.txt geschrieben.
-          # Der combined-blacklist-Workflow liest tor_exit_nodes.txt als Feed-Quelle ein.
-          print(f"tor_exit_nodes.txt fertig – wird vom combined-blacklist-Workflow eingelesen.")
-
-          # ── Report ────────────────────────────────────────────────────────
-          lines = []
-          lines.append("# Tor Exit Node Monitor – Report")
-          lines.append(f"**Aktualisiert:** {now_str}\n")
-          lines.append("---")
-          lines.append("## Quellen\n")
-          lines.append("| Quelle | IPs |")
-          lines.append("|---|---|")
-          for name, count in source_stats.items():
-              status = "✅" if count > 0 else "❌"
-              lines.append(f"| {status} {name} | {count} |")
-          lines.append("")
-          lines.append("---")
-          lines.append("## Statistik\n")
-          lines.append(f"| Metrik | Wert |")
-          lines.append(f"|---|---|")
-          lines.append(f"| Gesamt aktive Exit-Nodes | **{len(final_ips)}** |")
-          lines.append(f"| Neu entdeckt | **+{len(new_ips)}** |")
-          lines.append(f"| Nicht mehr aktiv | **-{len(removed_ips)}** |")
-          if new_ips:
-              lines.append("")
-              lines.append("## Neue Exit-Nodes (Sample)\n")
-              for ip in sorted(list(new_ips))[:20]:
-                  lines.append(f"- `{ip}`")
-              if len(new_ips) > 20:
-                  lines.append(f"- *... und {len(new_ips)-20} weitere*")
-          lines.append(f"\n---\n*Generiert: {now_str}*")
-
+          lines = ["# Tor Exit Node Monitor – Report", f"**Aktualisiert:** {now_str}\n", "---",
+                   "| Quelle | IPs |", "|---|---|"]
+          for n, c in stats.items():
+              lines.append(f"| {'✅' if c > 0 else '❌'} `{n}` | {c} |")
+          lines += ["", "---", f"| Metrik | Wert |", "|---|---|",
+                    f"| Gesamt aktive Exit-Nodes | **{len(final_ips)}** |",
+                    f"| Neu | **+{len(new_ips)}** |", f"| Entfernt | **-{len(removed_ips)}** |",
+                    f"\n---\n*Generiert: {now_str}*"]
           with open("tor_exit_report.md", "w") as f:
               f.write("\n".join(lines))
-          print("tor_exit_report.md geschrieben")
+          print(f"Fertig: {len(final_ips)} Tor-Exit-IPs")
           EOF
 
       - name: Commit
@@ -139,5 +94,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add tor_exit_nodes.txt tor_exit_report.md
-          git diff --staged --quiet || git commit -m "Tor Exit Nodes aktualisiert [$(date -u '+%Y-%m-%d %H:%M') UTC]"
-          git push
+          if git diff --staged --quiet; then
+            echo "Keine Änderungen"
+          else
+            git commit -m "Tor Exit Node Monitor: $(date -u '+%Y-%m-%d %H:%M') UTC"
+            git pull --rebase origin ${GITHUB_REF_NAME}
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi

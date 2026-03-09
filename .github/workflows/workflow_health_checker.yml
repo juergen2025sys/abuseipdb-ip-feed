@@ -1,0 +1,159 @@
+name: Workflow Health Checker
+
+on:
+  schedule:
+    - cron: '0 1 * * *'    # täglich 01:00 UTC
+  push:
+    paths:
+      - '.github/workflows/*.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  workflow-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Check all Workflows
+        run: |
+          python3 << 'EOF'
+          import os, re, glob
+          from datetime import datetime, timezone
+
+          now     = datetime.now(timezone.utc)
+          now_str = now.strftime("%Y-%m-%d %H:%M UTC")
+
+          WORKFLOW_DIR = ".github/workflows"
+          yml_files    = sorted(glob.glob(f"{WORKFLOW_DIR}/*.yml"))
+
+          results = []
+
+          for path in yml_files:
+              name     = os.path.basename(path)
+              warnings = []
+              errors   = []
+
+              with open(path, encoding="utf-8") as f:
+                  content = f.read()
+                  lines   = content.splitlines()
+
+              # ── Pflichtfelder ────────────────────────────────────────────
+              if "permissions:" not in content:
+                  errors.append("Fehlendes `permissions:` – Workflow könnte keine Schreibrechte haben")
+              if "contents: write" not in content:
+                  errors.append("Fehlendes `contents: write` – Push wird fehlschlagen")
+              if "persist-credentials: true" not in content:
+                  warnings.append("Kein `persist-credentials: true` – Push-Auth könnte fehlen")
+
+              # ── Cron-Format prüfen ───────────────────────────────────────
+              cron_matches = re.findall(r"cron:\s*['\"]([^'\"]+)['\"]", content)
+              for cron_expr in cron_matches:
+                  parts = cron_expr.strip().split()
+                  if len(parts) != 5:
+                      errors.append(f"Ungültiger Cron-Ausdruck: `{cron_expr}` (erwartet 5 Felder)")
+
+              # ── Timeout prüfen ───────────────────────────────────────────
+              if "timeout-minutes:" not in content:
+                  warnings.append("Kein `timeout-minutes:` – Job könnte bis zu 6h hängen")
+
+              # ── git push ohne rebase ─────────────────────────────────────
+              for i, line in enumerate(lines, 1):
+                  stripped = line.strip()
+                  if stripped == "git push" or stripped == "git push\n":
+                      errors.append(f"Zeile {i}: Nacktes `git push` ohne rebase – Konflikt-Risiko bei parallelen Runs")
+
+              # ── YAML-Struktur: run: direkt nach uses: ───────────────────
+              for i, line in enumerate(lines):
+                  if "uses: actions/cache" in line or "uses: actions/checkout" in line:
+                      # nächste nicht-leere Zeile prüfen
+                      for j in range(i+1, min(i+10, len(lines))):
+                          nl = lines[j].strip()
+                          if nl == "":
+                              continue
+                          if nl.startswith("run:"):
+                              errors.append(f"Zeile {j+1}: `run:` direkt nach `uses:` ohne eigenen `- name:` Step → YAML-Fehler")
+                          break
+
+              # ── Commit-Message-Format ────────────────────────────────────
+              commit_msgs = re.findall(r'git commit -m "([^"]+)"', content)
+              for msg in commit_msgs:
+                  if "UTC" not in msg:
+                      warnings.append(f"Commit-Message ohne UTC-Zeitstempel: `{msg[:60]}`")
+
+              # ── git add vor commit ───────────────────────────────────────
+              if "git commit" in content and "git add" not in content:
+                  warnings.append("git commit ohne vorheriges git add gefunden")
+
+              status = "❌ FEHLER" if errors else ("⚠️ WARNUNG" if warnings else "✅ OK")
+              results.append({
+                  "file":     name,
+                  "status":   status,
+                  "errors":   errors,
+                  "warnings": warnings,
+                  "crons":    cron_matches,
+              })
+              print(f"{status}: {name} ({len(errors)} Fehler, {len(warnings)} Warnungen)")
+
+          # ── Report ────────────────────────────────────────────────────────
+          ok_count   = sum(1 for r in results if r["status"] == "✅ OK")
+          warn_count = sum(1 for r in results if r["status"] == "⚠️ WARNUNG")
+          err_count  = sum(1 for r in results if r["status"] == "❌ FEHLER")
+
+          lines = []
+          lines.append("# Workflow Health Checker – Report")
+          lines.append(f"**Aktualisiert:** {now_str}\n")
+          lines.append(f"**Workflows:** {len(results)} | ✅ {ok_count} OK | ⚠️ {warn_count} Warnung | ❌ {err_count} Fehler\n")
+          lines.append("---")
+          lines.append("## Übersicht\n")
+          lines.append("| Workflow | Status | Fehler | Warnungen | Cron |")
+          lines.append("|---|---|---|---|---|")
+          for r in results:
+              cron_str = ", ".join(f"`{c}`" for c in r["crons"]) if r["crons"] else "–"
+              lines.append(f"| `{r['file']}` | {r['status']} | {len(r['errors'])} | {len(r['warnings'])} | {cron_str} |")
+
+          if err_count > 0:
+              lines.append("\n---\n## ❌ Fehler im Detail\n")
+              for r in results:
+                  if r["errors"]:
+                      lines.append(f"### `{r['file']}`\n")
+                      for e in r["errors"]:
+                          lines.append(f"- 🔴 {e}")
+                      lines.append("")
+
+          if warn_count > 0:
+              lines.append("\n---\n## ⚠️ Warnungen im Detail\n")
+              for r in results:
+                  if r["warnings"]:
+                      lines.append(f"### `{r['file']}`\n")
+                      for w in r["warnings"]:
+                          lines.append(f"- 🟡 {w}")
+                      lines.append("")
+
+          lines.append(f"\n---\n*Generiert: {now_str} | {len(yml_files)} Workflow-Dateien geprüft*")
+
+          with open("workflow_health_report.md", "w") as f:
+              f.write("\n".join(lines))
+          print(f"\nworkflow_health_report.md geschrieben")
+          print(f"Gesamt: {ok_count} OK | {warn_count} Warnungen | {err_count} Fehler")
+          EOF
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add workflow_health_report.md
+          if git diff --staged --quiet; then
+            echo "Keine Änderungen"
+          else
+            git commit -m "Workflow Health Checker: $(date -u '+%Y-%m-%d %H:%M') UTC"
+            git pull --rebase origin ${GITHUB_REF_NAME}
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi

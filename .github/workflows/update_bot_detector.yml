@@ -1,9 +1,9 @@
-name: Update Bot-Detector Blacklist
+name: Bot-Detector Blacklist
 
 on:
   schedule:
-    - cron: '45 5,11,17,23 * * *'  # 15min vor Combined (5:45, 11:45, 17:45, 23:45)
-  workflow_dispatch:        # manuell auslösbar
+    - cron: '45 23 * * *'   # täglich 23:45 UTC (15 Min vor Combined um 00:00)
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -11,6 +11,7 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout Repository
@@ -18,39 +19,44 @@ jobs:
         with:
           persist-credentials: true
 
-      - name: Fetch & Convert Blacklist
+      - name: Fetch Bot-Detector Blacklist
         run: |
           python3 << 'EOF'
-          import urllib.request
-          import json
+          import urllib.request, json, sys
           from datetime import datetime, timezone
+
+          now     = datetime.now(timezone.utc)
+          now_str = now.strftime("%Y-%m-%d %H:%M UTC")
 
           url = "https://raw.githubusercontent.com/lula73/bot-detector/refs/heads/master/blacklist.json"
           try:
-              req = urllib.request.Request(url, headers={"User-Agent": "NETSHIELD/2.0"})
+              req = urllib.request.Request(url, headers={"User-Agent": "NETSHIELD/3.0"})
               with urllib.request.urlopen(req, timeout=20) as r:
                   data = json.load(r)
               ips = [entry["ip"] for entry in data.get("blacklist", []) if "ip" in entry]
           except Exception as e:
               print(f"FEHLER: Bot-Detector Feed nicht erreichbar: {e}")
               print("Behalte bestehende bot_detector_blacklist_ipv4.txt")
-              import sys; sys.exit(0)
-          now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+              sys.exit(0)
 
           with open("bot_detector_blacklist_ipv4.txt", "w") as f:
-              f.write("# Bot Detector Blacklist\n")
-              f.write("# Source: github.com/lula73/bot-detector\n")
-              f.write(f"# Updated: {now}\n")
-              f.write(f"# Total IPs: {len(ips)}\n")
+              f.write("# NETSHIELD Bot-Detector Blacklist\n")
+              f.write(f"# Aktualisiert: {now_str}\n")
+              f.write(f"# Quelle: github.com/lula73/bot-detector\n")
+              f.write(f"# Eintraege: {len(ips)}\n\n")
               f.write("\n".join(ips) + "\n")
-
-          print(f"Saved {len(ips)} IPs.")
+          print(f"Fertig: {len(ips)} Bot-IPs")
           EOF
 
-      - name: Commit & Push
+      - name: Commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add bot_detector_blacklist_ipv4.txt
-          git diff --staged --quiet || git commit -m "Auto-update bot_detector_blacklist_ipv4.txt [$(date -u '+%Y-%m-%d %H:%M') UTC]"
-          git push
+          if git diff --staged --quiet; then
+            echo "Keine Änderungen"
+          else
+            git commit -m "Bot-Detector Blacklist: $(date -u '+%Y-%m-%d %H:%M') UTC"
+            git pull --rebase origin ${GITHUB_REF_NAME}
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi

@@ -1,0 +1,265 @@
+name: Feed Health Monitor
+
+on:
+  schedule:
+    - cron: '0 1 * * *'    # täglich 01:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  feed-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Test all Feed URLs
+        run: |
+          python3 << 'EOF'
+          import urllib.request, urllib.error, time, re, json, os
+          from datetime import datetime, timezone
+          from concurrent.futures import ThreadPoolExecutor, as_completed
+
+          now     = datetime.now(timezone.utc)
+          now_str = now.strftime("%Y-%m-%d %H:%M UTC")
+
+          # Alle 136 Feed-URLs (identisch mit update_combined_blacklist.yml)
+          FEEDS = {
+              "cinsscore":                  "https://cinsscore.com/list/ci-badguys.txt",
+              "cinsarmy":                   "https://cinsarmy.com/list/ci-badguys.txt",
+              "greensnow":                  "https://blocklist.greensnow.co/greensnow.txt",
+              "feodo_aggressive":           "https://feodotracker.abuse.ch/downloads/ipblocklist_aggressive.txt",
+              "feodo_recommended":          "https://feodotracker.abuse.ch/downloads/ipblocklist.txt",
+              "threatfox_ioc":              "https://raw.githubusercontent.com/elliotwutingfeng/ThreatFox-IOC-IPs/refs/heads/main/ips.txt",
+              "l7_ddos":                    "https://raw.githubusercontent.com/Tizian-Maxime-Weigt/L7-HTTP-DDoS-Flood-IP-Signature-IP-List/refs/heads/main/ddos-signatures.txt",
+              "binary_defense":             "https://binarydefense.com/banlist.txt",
+              "data_shield":                "https://raw.githubusercontent.com/duggytuxy/Data-Shield_IPv4_Blocklist/refs/heads/main/prod_data-shield_ipv4_blocklist.txt",
+              "interserver":                "https://sigs.interserver.net/ip.txt",
+              "crowdsec_ssh":               "https://raw.githubusercontent.com/Y3ll0w/CrowdSec-CAPI-Decisions/refs/heads/main/ssh-bf.json.txt",
+              "trcert_malware":             "https://raw.githubusercontent.com/cenk/trcert-malware/refs/heads/main/trcert-ips.txt",
+              "danger_bruteforce":          "https://danger.rulez.sk/projects/bruteforceblocker/blist.php",
+              "threatview_high_conf":       "https://threatview.io/Downloads/IP-High-Confidence-Feed.txt",
+              "florent_banned":             "https://raw.githubusercontent.com/florentvinai/bad-ips-on-my-vps/refs/heads/main/banned_ips.txt",
+              "firehol_cybercrime":         "https://raw.githubusercontent.com/firehol/blocklist-ipsets/refs/heads/master/cybercrime.ipset",
+              "firehol_anonymous":          "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_anonymous.netset",
+              "dshield":                    "https://www.dshield.org/block.txt",
+              "cloudzy":                    "https://raw.githubusercontent.com/CriticalPathSecurity/Public-Intelligence-Feeds/refs/heads/master/cloudzy.txt",
+              "bbcan177":                   "https://gist.githubusercontent.com/BBcan177/d7105c242f17f4498f81/raw",
+              "kevinmarx":                  "https://kevinmarx.org/malicious-ip-list.txt",
+              "honeypot_blocklist":         "https://raw.githubusercontent.com/yuexuana521/honeypot-blocklist/refs/heads/main/ip_list.txt",
+              "edanwong":                   "https://raw.githubusercontent.com/EdanWong/ip_list/refs/heads/main/my_ips.txt",
+              "nixbear_malicious":          "https://raw.githubusercontent.com/nixbear/malicious_ips/refs/heads/main/malicious_ips.txt",
+              "ufukart_blacklist":          "https://raw.githubusercontent.com/ufukart/Blacklist/main/blacklist.txt",
+              "f3csystems":                 "https://raw.githubusercontent.com/f3csystems/BlockList_IP/refs/heads/main/blacklist.txt",
+              "fortigate_azure":            "https://raw.githubusercontent.com/IT3ngineer/FortigateBlockList/refs/heads/main/AzureBlockListIPs.txt",
+              "romainmarcoux_aa":           "https://raw.githubusercontent.com/romainmarcoux/malicious-ip/main/full-300k-aa.txt",
+              "romainmarcoux_ab":           "https://raw.githubusercontent.com/romainmarcoux/malicious-ip/main/full-300k-ab.txt",
+              "romainmarcoux_ac":           "https://raw.githubusercontent.com/romainmarcoux/malicious-ip/main/full-300k-ac.txt",
+              "4ip_high_security":          "https://raw.githubusercontent.com/4IP-Solutions/threat-feeds/refs/heads/main/blocklist-incoming-ip-high-security.txt",
+              "cyna_malicious":             "https://raw.githubusercontent.com/cybersecurity-cyna/Malicious_IP/refs/heads/main/ip-list.txt",
+              "black_mirror":               "https://github.com/T145/black-mirror/releases/download/latest/BLOCK_IPV4.txt",
+              "alienvault":                 "https://reputation.alienvault.com/reputation.generic",
+              "bitwire_ipblocklist":        "https://raw.githubusercontent.com/bitwire-it/ipblocklist/refs/heads/main/ip-list.txt",
+              "littlejake_all_blacklist":   "https://cdn.jsdelivr.net/gh/LittleJake/ip-blacklist/all_blacklist.txt",
+              "shadowwhisperer_hackers":    "https://raw.githubusercontent.com/ShadowWhisperer/IPs/refs/heads/master/Malware/Hackers",
+              "netmountains_blocklist":     "https://raw.githubusercontent.com/NETMOUNTAINS/Curated-IP-Blocklist/main/ip-blacklist.list",
+              "bluetack_blacklist":         "https://raw.githubusercontent.com/actuallymentor/bluetack-ip-blacklist-generator/refs/heads/master/blacklist",
+              "rtbh_output":                "https://list.rtbh.com.tr/output.txt",
+              "sefinek_malicious":          "https://raw.githubusercontent.com/sefinek/Malicious-IP-Addresses/main/lists/main.txt",
+              "magicteamc_bad_ips":         "https://raw.githubusercontent.com/MagicTeaMC/bad-ips/refs/heads/main/bad-ips.txt",
+              "ddrimus_http_threats":       "https://raw.githubusercontent.com/ddrimus/http-threat-blocklist/refs/heads/main/blocklist.txt",
+              "blacksnowdot_packets":       "https://raw.githubusercontent.com/BlacKSnowDot0/packetsdatabase-db/refs/heads/main/ip_list.txt",
+              "freakuency_threatfeed":      "https://raw.githubusercontent.com/FreakuencyFive/Public-IP-ThreatFeed/refs/heads/main/blacklist.txt",
+              "ultimate_hosts_ips0":        "https://raw.githubusercontent.com/Ultimate-Hosts-Blacklist/Ultimate.Hosts.Blacklist/refs/heads/master/ips/ips0.list",
+              "amitambekar_threats":        "https://raw.githubusercontent.com/amitambekar510/Malicious-IP-Threat-List/refs/heads/main/Malicious-IP-Threat-List.txt",
+              "amitambekar_threats_aa":     "https://raw.githubusercontent.com/amitambekar510/Malicious-IP-Threat-List/main/Malicious-IP-Threat-List_aa",
+              "dolutech_blacklist":         "https://raw.githubusercontent.com/dolutech/blacklist-dolutech/refs/heads/main/Black-list-semanal-dolutech.txt",
+              "zerof_ipextractor":          "https://raw.githubusercontent.com/ZEROF/ipextractor/refs/heads/main/ipexdbl.txt",
+              "subnet_blocklist_new":       "https://raw.githubusercontent.com/coyote-nl/blocklist/refs/heads/main/subnet-blocklist-new",
+              "bdix_prefix_ipv4":           "https://raw.githubusercontent.com/tushroy/bdix-isp-blocks/refs/heads/master/bdix-prefix_ipv4.txt",
+              "urlhaus_ips":                "https://urlhaus.abuse.ch/downloads/text/",
+              "bazaar_c2":                  "https://bazaar.abuse.ch/export/txt/cscb/recent/",
+              "firehol_level1":             "https://iplists.firehol.org/files/firehol_level1.netset",
+              "firehol_level2":             "https://iplists.firehol.org/files/firehol_level2.netset",
+              "firehol_level3":             "https://iplists.firehol.org/files/firehol_level3.netset",
+              "firehol_level4":             "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level4.netset",
+              "firehol_webclient":          "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_webclient.netset",
+              "firehol_webserver":          "https://iplists.firehol.org/files/firehol_webserver.netset",
+              "firehol_proxies":            "https://iplists.firehol.org/files/firehol_proxies.netset",
+              "firehol_abusers_1d":         "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_abusers_1d.netset",
+              "et_block":                   "https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt",
+              "et_compromised":             "https://rules.emergingthreats.net/blockrules/compromised-ips.txt",
+              "spamhaus_drop":              "https://www.spamhaus.org/drop/drop.txt",
+              "spamhaus_edrop":             "https://www.spamhaus.org/drop/edrop.txt",
+              "blocklist_de_all":           "https://lists.blocklist.de/lists/all.txt",
+              "blocklist_de_export":        "https://www.blocklist.de/downloads/export-ips_all.txt",
+              "blocklist_de_strongips":     "https://lists.blocklist.de/lists/strongips.txt",
+              "blocklist_de_getlast":       "https://api.blocklist.de/getlast.php?time=43200",
+              "blocklist_de_ssh":           "https://lists.blocklist.de/lists/ssh.txt",
+              "blocklist_de_mail":          "https://lists.blocklist.de/lists/mail.txt",
+              "blocklist_de_apache":        "https://lists.blocklist.de/lists/apache.txt",
+              "blocklist_de_imap":          "https://lists.blocklist.de/lists/imap.txt",
+              "blocklist_de_ftp":           "https://lists.blocklist.de/lists/ftp.txt",
+              "c2_tracker":                 "https://raw.githubusercontent.com/montysecurity/C2-Tracker/main/data/all.txt",
+              "c2_iplist":                  "https://raw.githubusercontent.com/drb-ra/C2IntelFeeds/master/feeds/IPC2s.csv",
+              "cobalt_strike_ips":          "https://raw.githubusercontent.com/Gi7w0rm/CobaltStrikeC2Tracker/main/lists/IPs.txt",
+              "stopforumspam_toxic":        "https://www.stopforumspam.com/downloads/toxic_ip_cidr.txt",
+              "ipsum_level3":               "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/3.txt",
+              "ipsum_level5":               "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/5.txt",
+              "ipsum_level7":               "https://raw.githubusercontent.com/stamparm/ipsum/master/levels/7.txt",
+              "ipsum_master":               "https://raw.githubusercontent.com/stamparm/ipsum/refs/heads/master/ipsum.txt",
+              "shodan_scanners":            "https://raw.githubusercontent.com/jgamblin/Shodan-Malware-Scanning-IPs/master/malware_ips.txt",
+              "binaryedge_scanners":        "https://raw.githubusercontent.com/stamparm/maltrail/master/trails/static/mass_scanner.txt",
+              "normshield_ssh":             "https://iplists.firehol.org/files/normshield_all_ssh.ipset",
+              "spamhaus_pbl":               "https://raw.githubusercontent.com/elliotwutingfeng/Spamhaus-DNSBL-IPs/main/pbl.txt",
+              "phishing_army":              "https://phishing.army/download/phishing_army_blocklist.txt",
+              "openphish":                  "https://openphish.com/feed.txt",
+              "pgl_yoyo_adservers":         "https://pgl.yoyo.org/adservers/iplist.php?format=&showintro=0",
+              "abuseipdb_s100_30d":         "https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/main/abuseipdb-s100-30d.ipv4",
+              "abuseipdb_s90_30d":          "https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/main/abuseipdb-s90-30d.ipv4",
+              "abuseipdb_tmiland":          "https://abuseipdb.tmiland.com/abuseipdb.txt",
+              "abuseipdb_score75":          "https://raw.githubusercontent.com/LittleJake/ip-blacklist/refs/heads/main/abuseipdb_blacklist_ip_score_75.txt",
+              "abuseipdb_score100":         "https://raw.githubusercontent.com/LittleJake/ip-blacklist/refs/heads/main/abuseipdb_blacklist_ip_score_100.txt",
+              "abuseipdb_scriptzteam":      "https://raw.githubusercontent.com/scriptzteam/AbuseIPDB-BlackList/refs/heads/main/abuseipdb_blacklist.txt",
+              "abuseipdb_axllent":          "https://raw.githubusercontent.com/axllent/iplists/master/lists/abuseipdb-30d.txt",
+              "mrlooker_threats":           "https://raw.githubusercontent.com/mrlooker/Suspicious-IPs/main/IPs.txt",
+              "gridinsoft":                 "https://raw.githubusercontent.com/GridinSoft/IP-Blocklist/main/ip-blocklist.txt",
+              "duggytuxy_agr":              "https://raw.githubusercontent.com/duggytuxy/malicious_ip_addresses/main/botnets_zombies_scanners_spam_ips.txt",
+              "turris_greylist":            "https://view.sentinel.turris.cz/greylist-data/greylist-latest.csv",
+              "talos_intelligence":         "https://talosintelligence.com/documents/ip-blacklist",
+              "eset_apr":                   "https://raw.githubusercontent.com/elliotwutingfeng/ESET-APR-IPs/main/ips.txt",
+              "romainmarcoux_outgoing_aa":  "https://raw.githubusercontent.com/romainmarcoux/malicious-outgoing-ip/main/full-outgoing-ip-aa.txt",
+              "romainmarcoux_outgoing_ab":  "https://raw.githubusercontent.com/romainmarcoux/malicious-outgoing-ip/main/full-outgoing-ip-ab.txt",
+              "fullbogons_ipv4":            "https://www.team-cymru.org/Services/Bogons/fullbogons-ipv4.txt",
+              "tor_project_bulk":           "https://check.torproject.org/torbulkexitlist",
+              "tor_danme":                  "https://www.dan.me.uk/torlist/",
+              "tor_critpath":               "https://raw.githubusercontent.com/CriticalPathSecurity/Public-Intelligence-Feeds/refs/heads/master/tor-exit.txt",
+              "tor_secops":                 "https://raw.githubusercontent.com/SecOps-Institute/Tor-IP-Addresses/master/tor-exit-nodes.lst",
+              "tor_neblink":                "https://www.neblink.net/blocklist/TorExitNodes.txt",
+              "tor_enkidu":                 "https://raw.githubusercontent.com/Enkidu-6/tor-relay-lists/main/relays-v4.txt",
+              "vpn_protonvpn":              "https://raw.githubusercontent.com/tn3w/ProtonVPN-IPs/refs/heads/master/protonvpn_ips.txt",
+              "vpn_oooninja":               "https://az0-vpnip-public.oooninja.com/ip.txt",
+              "vpn_x4bnet":                 "https://raw.githubusercontent.com/X4BNet/lists_vpn/refs/heads/main/ipv4.txt",
+              "vpn_nordvpn_jamoca":         "https://gist.githubusercontent.com/JamoCA/eedaf4f7cce1cb0aeb5c1039af35f0b7/raw/cb6568528820c09e94cac7ef3461bc6cbf792e7e/NordVPN-Server-IP-List.txt",
+              "vpn_nazgulcoder":            "https://raw.githubusercontent.com/NazgulCoder/IPLists/main/output/vpn-ipv4.txt",
+              "vpn_antonme_hosts":          "https://raw.githubusercontent.com/antonme/ipnames/refs/heads/master/ext-resolve-vpnhosts.txt",
+              "vpn_windscribe":             "https://raw.githubusercontent.com/coocoobau/vpn-ip-lists/refs/heads/main/windscribevpn-ips.txt",
+              "vpn_expressvpn":             "https://raw.githubusercontent.com/antonme/ipranges/refs/heads/main/expressvpn/ipv4.txt",
+              "vpn_nordvpn_antonme":        "https://raw.githubusercontent.com/antonme/ipranges/refs/heads/main/nordvpn/ipv4.txt",
+              "vpn_surfshark":              "https://raw.githubusercontent.com/antonme/ipranges/refs/heads/main/surfshark/ipv4.txt",
+              "vpn_tunnelbear":             "https://raw.githubusercontent.com/tn3w/TunnelBear-IPs/refs/heads/master/tunnelbear_ips.txt",
+              "dc_jhassine_datacenters":    "https://raw.githubusercontent.com/jhassine/server-ip-addresses/master/data/datacenters.txt",
+              "dc_disposable_providers":    "https://raw.githubusercontent.com/disposable/cloud-ip-ranges/refs/heads/master/txt/all-providers.txt",
+              "dc_josephrocca_vpn":         "https://raw.githubusercontent.com/josephrocca/is-vpn/refs/heads/main/vpn-or-datacenter-ipv4-ranges.txt",
+              "dc_furry_vps":               "https://raw.githubusercontent.com/the-furry-hubofeverything/vps-ranges/refs/heads/main/ip.txt",
+              "dc_axpwx_all_cidr":          "https://raw.githubusercontent.com/axpwx/IP-Data/refs/heads/master/provider/all-cidr-ipv4.txt",
+              "dc_hexydec_datacentres":     "https://raw.githubusercontent.com/hexydec/ip-ranges/main/output/datacentres.txt",
+              "dc_painless_all_ipv4":       "https://raw.githubusercontent.com/painlessanalytics/datacenter-cloud-ip-lists/refs/heads/main/lists/asn/all-ipv4.txt",
+              "dc_123jjck_cdn":             "https://raw.githubusercontent.com/123jjck/cdn-ip-ranges/refs/heads/main/all/all_plain_ipv4.txt",
+              "geo_europe":                 "https://raw.githubusercontent.com/antonme/GeoIP/refs/heads/master/europe.ipv4.cidr.txt",
+              "geo_us":                     "https://raw.githubusercontent.com/antonme/GeoIP/refs/heads/master/us.ipv4.cidr.txt",
+              "geo_cis":                    "https://raw.githubusercontent.com/antonme/GeoIP/refs/heads/master/cis.ipv4.cidr.txt",
+              "geo_cn":                     "https://raw.githubusercontent.com/antonme/GeoIP/refs/heads/master/cn.ipv4.cidr.txt",
+              "geo_russia":                 "https://raw.githubusercontent.com/antonme/GeoIP/refs/heads/master/russia.ipv4.cidr.txt",
+          }
+
+          IP_RE = re.compile(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b')
+
+          def check_feed(name, url):
+              t0 = time.time()
+              try:
+                  req = urllib.request.Request(url, headers={"User-Agent": "NETSHIELD-HealthMonitor/1.0"})
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      code   = r.status
+                      sample = r.read(65536).decode("utf-8", errors="ignore")
+                  elapsed = round(time.time() - t0, 2)
+                  ip_count = len(set(IP_RE.findall(sample)))
+                  has_ips  = ip_count > 0
+                  return {"name": name, "url": url, "status": code, "ok": code == 200,
+                          "has_ips": has_ips, "sample_ips": ip_count, "ms": int(elapsed*1000)}
+              except urllib.error.HTTPError as e:
+                  return {"name": name, "url": url, "status": e.code, "ok": False,
+                          "has_ips": False, "sample_ips": 0, "ms": int((time.time()-t0)*1000)}
+              except Exception as e:
+                  return {"name": name, "url": url, "status": 0, "ok": False,
+                          "has_ips": False, "sample_ips": 0, "ms": int((time.time()-t0)*1000), "err": str(e)[:80]}
+
+          results = []
+          with ThreadPoolExecutor(max_workers=15) as ex:
+              futures = {ex.submit(check_feed, n, u): n for n, u in FEEDS.items()}
+              for f in as_completed(futures, timeout=300):
+                  r = f.result()
+                  results.append(r)
+                  icon = "✅" if r["ok"] and r["has_ips"] else ("⚠️" if r["ok"] else "❌")
+                  print(f"{icon} {r['name']}: HTTP {r['status']} | {r['ms']}ms | ~{r['sample_ips']} IPs (sample)")
+
+          results.sort(key=lambda x: (not x["ok"], x["name"]))
+
+          ok_count   = sum(1 for r in results if r["ok"] and r["has_ips"])
+          warn_count = sum(1 for r in results if r["ok"] and not r["has_ips"])
+          err_count  = sum(1 for r in results if not r["ok"])
+
+          print(f"\nErgebnis: ✅ {ok_count} OK | ⚠️ {warn_count} leer | ❌ {err_count} Fehler")
+
+          # ── Report schreiben ───────────────────────────────────────────────
+          lines = []
+          lines.append("# Feed Health Monitor – Report")
+          lines.append(f"**Aktualisiert:** {now_str}\n")
+          lines.append(f"**Feeds gesamt:** {len(FEEDS)} | ✅ {ok_count} OK | ⚠️ {warn_count} leer | ❌ {err_count} Fehler\n")
+          lines.append("---")
+
+          if err_count > 0:
+              lines.append("## ❌ Fehlerhafte Feeds\n")
+              lines.append("| Feed | HTTP | Fehler | Reaktionszeit |")
+              lines.append("|---|---|---|---|")
+              for r in results:
+                  if not r["ok"]:
+                      err_msg = r.get("err", f"HTTP {r['status']}")
+                      lines.append(f"| `{r['name']}` | {r['status']} | {err_msg} | {r['ms']}ms |")
+              lines.append("")
+
+          if warn_count > 0:
+              lines.append("## ⚠️ Feeds ohne IPs (möglicherweise leer oder falsches Format)\n")
+              lines.append("| Feed | HTTP | Reaktionszeit |")
+              lines.append("|---|---|---|")
+              for r in results:
+                  if r["ok"] and not r["has_ips"]:
+                      lines.append(f"| `{r['name']}` | {r['status']} | {r['ms']}ms |")
+              lines.append("")
+
+          lines.append("## ✅ Alle Feeds – Übersicht\n")
+          lines.append("| Feed | Status | HTTP | IPs (Sample) | Reaktionszeit |")
+          lines.append("|---|---|---|---|---|")
+          for r in results:
+              icon = "✅" if r["ok"] and r["has_ips"] else ("⚠️" if r["ok"] else "❌")
+              lines.append(f"| `{r['name']}` | {icon} | {r['status']} | ~{r['sample_ips']} | {r['ms']}ms |")
+
+          lines.append(f"\n---\n*Generiert: {now_str} | {len(FEEDS)} Feeds geprüft*")
+
+          with open("feed_health_report.md", "w") as f:
+              f.write("\n".join(lines))
+          print("feed_health_report.md geschrieben")
+
+          # JSON für andere Workflows
+          with open("feed_health_status.json", "w") as f:
+              json.dump({"updated": now_str, "summary": {"ok": ok_count, "warn": warn_count, "error": err_count}, "feeds": results}, f, indent=2)
+          EOF
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add feed_health_report.md feed_health_status.json
+          if git diff --staged --quiet; then
+            echo "Keine Änderungen"
+          else
+            git commit -m "Feed Health Monitor: $(date -u '+%Y-%m-%d %H:%M') UTC"
+            git pull --rebase origin ${GITHUB_REF_NAME}
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi

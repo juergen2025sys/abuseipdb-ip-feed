@@ -2,7 +2,7 @@ name: NETSHIELD Report Generator
 
 on:
   schedule:
-    - cron: '50 0,6,12,18 * * *'  # 50 Min nach combined-blacklist (0:00, 6:00, 12:00, 18:00)
+    - cron: '50 0 * * *'    # täglich 00:50 UTC
   workflow_dispatch:
 
 permissions:
@@ -12,206 +12,105 @@ jobs:
   generate-report:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
         with:
           persist-credentials: true
 
       - name: Generate NETSHIELD_REPORT.md
         run: |
           python3 << 'EOF'
-          import os
-          import re
-          import json
+          import os, re, json
           from datetime import datetime, timezone
 
           now     = datetime.now(timezone.utc)
           now_str = now.strftime("%Y-%m-%d %H:%M UTC")
-          IP_RE   = re.compile(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b')
 
           def count_ips(filepath):
-              if not os.path.exists(filepath):
-                  return 0, False
+              if not os.path.exists(filepath): return 0
               count = 0
               with open(filepath) as f:
                   for line in f:
-                      line = line.strip()
-                      if line and not line.startswith("#"):
+                      if line.strip() and not line.startswith("#"):
                           count += 1
-              return count, True
+              return count
 
-          def read_header(filepath, key):
-              """Liest einen Wert aus dem Header einer Datei z.B. '# Neu: +123'"""
-              if not os.path.exists(filepath):
-                  return "–"
-              with open(filepath) as f:
-                  for line in f:
-                      if key.lower() in line.lower():
-                          nums = re.findall(r'[\+\-]?\d+', line)
-                          return nums[0] if nums else "–"
-              return "–"
-
-          def file_mtime(filepath):
-              if not os.path.exists(filepath):
-                  return None
+          def file_age(filepath):
+              if not os.path.exists(filepath): return "–"
               ts = os.path.getmtime(filepath)
               return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-          def status(filepath):
-              return "✅" if os.path.exists(filepath) else "❌"
-
-          # ── Daten einlesen ────────────────────────────────────────────────
-
-          # Blacklist
-          bl_count,  bl_ok  = count_ips("combined_threat_blacklist_ipv4.txt")
-          tor_count, tor_ok = count_ips("tor_exit_nodes.txt")
-          cve_count, cve_ok = count_ips("cve_exploit_ips.txt")
-          vpn_count, vpn_ok = count_ips("vpn_proxy_ranges.txt")
-
-          # Geo-Tagger JSON
-          top_countries = []
-          top_asns      = []
-          if os.path.exists("blacklist_geo_enriched.json"):
-              with open("blacklist_geo_enriched.json") as f:
-                  geo = json.load(f)
-              from collections import defaultdict
-              cc_count  = defaultdict(int)
-              asn_count = defaultdict(lambda: {"count": 0, "org": ""})
-              for ip, d in geo.get("data", {}).items():
-                  cc  = d.get("countryCode", "??")
-                  asn = d.get("asn", "")
-                  org = d.get("org", "")
-                  cc_count[cc] += 1
-                  if asn:
-                      asn_count[asn]["count"] += 1
-                      asn_count[asn]["org"]    = org
-              top_countries = sorted(cc_count.items(),  key=lambda x: x[1], reverse=True)[:10]
-              top_asns      = sorted(asn_count.items(), key=lambda x: x[1]["count"], reverse=True)[:10]
-
-          # Score Decay
-          zombie_count = 0
-          decay_count  = 0
-          if os.path.exists("score_decay_log.txt"):
-              with open("score_decay_log.txt") as f:
-                  content = f.read()
-              zombie_count = content.count("zombie") + len(re.findall(r'score=\d+.*\(\d+d ago\)', content.split("ZOMBIE")[1] if "ZOMBIE" in content else ""))
-              decay_count  = len(re.findall(r'\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b', content.split("Entfernungsempfehlung")[1] if "Entfernungsempfehlung" in content else ""))
-
-          # Score Decay Report für bessere Zahlen
-          if os.path.exists("score_decay_report.md"):
-              with open("score_decay_report.md") as f:
-                  sd_content = f.read()
-              m = re.search(r'Zombie.*?\*\*(\d+)\*\*', sd_content)
-              if m: zombie_count = int(m.group(1))
-              m = re.search(r'Entfernung empfohlen.*?\*\*(\d+)\*\*', sd_content)
-              if m: decay_count = int(m.group(1))
-
-          # ── Report bauen ─────────────────────────────────────────────────
-          flags = {"CN":"🇨🇳","RU":"🇷🇺","US":"🇺🇸","DE":"🇩🇪","NL":"🇳🇱","FR":"🇫🇷",
-                   "GB":"🇬🇧","BR":"🇧🇷","IN":"🇮🇳","KR":"🇰🇷","VN":"🇻🇳","UA":"🇺🇦",
-                   "TR":"🇹🇷","ID":"🇮🇩","HK":"🇭🇰","SG":"🇸🇬","JP":"🇯🇵","IR":"🇮🇷",
-                   "PL":"🇵🇱","TH":"🇹🇭","RO":"🇷🇴","MX":"🇲🇽","AR":"🇦🇷"}
+          FILES = {
+              "combined_threat_blacklist_ipv4.txt": "Stufe 1 – Alle IPs (365 Tage)",
+              "active_blacklist_ipv4.txt":          "Stufe 2 – Aktiv (30 Tage) → OPNsense",
+              "blacklist_confidence40_ipv4.txt":    "Hohe Konfidenz (≥40%)",
+              "watchlist_confidence20to39_ipv4.txt":"Watchlist (20-39%)",
+              "tor_exit_nodes.txt":                 "Tor Exit Nodes",
+              "cve_exploit_ips.txt":                "CVE Exploit IPs",
+              "vpn_proxy_ranges.txt":               "VPN / Proxy Ranges",
+              "bot_detector_blacklist_ipv4.txt":    "Bot-Detector Blacklist",
+              "honeypot_ips.txt":                   "Honeypot IPs",
+          }
 
           lines = []
-          lines.append("# 🛡️ NETSHIELD – Security Report")
+          lines.append("# 🛡 NETSHIELD Report")
           lines.append(f"**Aktualisiert:** {now_str}\n")
-          lines.append("> Automatisch generierter Sicherheits-Report. Alle Daten stammen aus den NETSHIELD-Workflows.\n")
-
-          # ── Übersicht ─────────────────────────────────────────────────────
           lines.append("---")
-          lines.append("## 📊 Übersicht\n")
-          lines.append("| Liste | Einträge | Status | Zuletzt aktualisiert |")
-          lines.append("|---|---|---|---|")
-          lines.append(f"| 🚫 Combined Threat Blacklist | **{bl_count:,}** | {status('combined_threat_blacklist_ipv4.txt')} | {file_mtime('combined_threat_blacklist_ipv4.txt') or '–'} |")
-          lines.append(f"| 🧅 Tor Exit Nodes | **{tor_count:,}** | {status('tor_exit_nodes.txt')} | {file_mtime('tor_exit_nodes.txt') or '–'} |")
-          lines.append(f"| 🦠 CVE / Exploit IPs | **{cve_count:,}** | {status('cve_exploit_ips.txt')} | {file_mtime('cve_exploit_ips.txt') or '–'} |")
-          lines.append(f"| 🔒 VPN & Proxy Ranges | **{vpn_count:,}** | {status('vpn_proxy_ranges.txt')} | {file_mtime('vpn_proxy_ranges.txt') or '–'} |")
+          lines.append("## 📊 Listen-Übersicht\n")
+          lines.append("| Datei | Beschreibung | IPs | Letzte Änderung |")
+          lines.append("|---|---|---:|---|")
 
-          # ── Workflow-Status ───────────────────────────────────────────────
+          total = 0
+          for fname, desc in FILES.items():
+              count = count_ips(fname)
+              age   = file_age(fname)
+              exists = "✅" if os.path.exists(fname) else "❌"
+              lines.append(f"| {exists} `{fname}` | {desc} | **{count:,}** | {age} |")
+              if fname in ("combined_threat_blacklist_ipv4.txt",):
+                  total = count
+
           lines.append("")
           lines.append("---")
-          lines.append("## ⚙️ Workflow-Status\n")
-          lines.append("| Workflow | Report | Zuletzt gelaufen |")
-          lines.append("|---|---|---|")
-          WORKFLOWS = [
-              ("Update Combined Blacklist",  "combined_threat_blacklist_ipv4.txt"),
-              ("Tor Exit Monitor",           "tor_exit_report.md"),
-              ("CVE-to-IP Mapper",           "cve_exploit_report.md"),
-              ("VPN & Proxy Detector",       "vpn_proxy_report.md"),
-              ("False Positive Checker",     "false_positive_report.md"),
-              ("Geo-Tagger",                 "geo_tagger_report.md"),
-              ("Score Decay Monitor",        "score_decay_report.md"),
-              ("ASN Reputation Scorer",      "asn_reputation_report.md"),
-          ]
-          for name, report_file in WORKFLOWS:
-              st   = status(report_file)
-              mt   = file_mtime(report_file) or "–"
-              lines.append(f"| {name} | [{st} Report]({report_file}) | {mt} |")
-
-          # ── Score Decay ───────────────────────────────────────────────────
+          lines.append("## 🔗 OPNsense Alias URL\n")
+          lines.append("```")
+          lines.append("https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/main/active_blacklist_ipv4.txt")
+          lines.append("```")
           lines.append("")
-          lines.append("---")
-          lines.append("## 💀 Score Decay Monitor\n")
-          lines.append("| Kategorie | Anzahl |")
-          lines.append("|---|---|")
-          lines.append(f"| Zombie IPs (hoher Score, lange inaktiv) | **{zombie_count}** |")
-          lines.append(f"| Entfernungsempfehlung (60+ Tage inaktiv) | **{decay_count}** |")
-          if os.path.exists("score_decay_report.md"):
-              lines.append(f"\n→ [Vollständiger Score Decay Report](score_decay_report.md)")
 
-          # ── Top Länder ────────────────────────────────────────────────────
-          if top_countries:
-              lines.append("")
+          # Feed Health einlesen falls vorhanden
+          if os.path.exists("feed_health_status.json"):
+              with open("feed_health_status.json") as f:
+                  fh = json.load(f)
+              s = fh.get("summary", {})
               lines.append("---")
-              lines.append("## 🌍 Top 10 Länder (nach Blacklist-IPs)\n")
-              lines.append("| Rang | Land | IPs |")
-              lines.append("|---|---|---|")
-              total_geo = sum(c for _, c in top_countries) or 1
-              for rank, (cc, count) in enumerate(top_countries, 1):
-                  flag = flags.get(cc, "🏳️")
-                  pct  = f"{count/total_geo*100:.1f}%"
-                  lines.append(f"| {rank} | {flag} `{cc}` | {count} ({pct}) |")
+              lines.append(f"## 🔍 Feed Health: ✅ {s.get('ok',0)} OK | ⚠️ {s.get('warn',0)} leer | ❌ {s.get('error',0)} Fehler\n")
+              lines.append(f"*Letzter Check: {fh.get('updated','–')} – Details: [feed_health_report.md](feed_health_report.md)*\n")
 
-          # ── Top ASNs ──────────────────────────────────────────────────────
-          if top_asns:
-              lines.append("")
+          # Workflow Health einlesen
+          if os.path.exists("workflow_health_report.md"):
               lines.append("---")
-              lines.append("## 🏢 Top 10 Abuse-ASNs\n")
-              lines.append("| Rang | ASN | Organisation | IPs |")
-              lines.append("|---|---|---|---|")
-              for rank, (asn, d) in enumerate(top_asns, 1):
-                  lines.append(f"| {rank} | `{asn}` | {d['org'][:40]} | {d['count']} |")
+              lines.append("## ⚙️ Workflow Health\n")
+              lines.append("*Details: [workflow_health_report.md](workflow_health_report.md)*\n")
 
-          # ── Footer ────────────────────────────────────────────────────────
-          lines.append("")
-          lines.append("---")
-          lines.append("## 📥 Direkte Download-Links\n")
-          lines.append("| Datei | URL |")
-          lines.append("|---|---|")
-          BASE = "https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/main"
-          for fname, label in [
-              ("combined_threat_blacklist_ipv4.txt", "Combined Threat Blacklist"),
-              ("tor_exit_nodes.txt",                 "Tor Exit Nodes"),
-              ("cve_exploit_ips.txt",                "CVE Exploit IPs"),
-              ("vpn_proxy_ranges.txt",               "VPN & Proxy Ranges"),
-              ("asn_blocklist_firewall.txt",          "ASN Firewall Blocklist"),
-          ]:
-              lines.append(f"| {label} | [{fname}]({BASE}/{fname}) |")
-
-          lines.append("")
           lines.append("---")
           lines.append(f"*Automatisch generiert von NETSHIELD Report Generator · {now_str}*")
 
-          with open("NETSHIELD_REPORT.md", "w", encoding="utf-8") as f:
+          with open("NETSHIELD_REPORT.md", "w") as f:
               f.write("\n".join(lines))
-
-          print(f"✅ NETSHIELD_REPORT.md generiert ({len(lines)} Zeilen)")
+          print(f"NETSHIELD_REPORT.md geschrieben | combined: {total:,} IPs")
           EOF
 
-      - name: Commit Report
+      - name: Commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add NETSHIELD_REPORT.md
-          git diff --staged --quiet || git commit -m "NETSHIELD Report aktualisiert [$(date -u '+%Y-%m-%d %H:%M') UTC]"
-          git push
+          if git diff --staged --quiet; then
+            echo "Keine Änderungen"
+          else
+            git commit -m "NETSHIELD Report Generator: $(date -u '+%Y-%m-%d %H:%M') UTC"
+            git pull --rebase origin ${GITHUB_REF_NAME}
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi

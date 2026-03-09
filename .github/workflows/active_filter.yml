@@ -1,0 +1,90 @@
+name: Active Filter
+
+on:
+  schedule:
+    - cron: '15 0 * * *'   # täglich 00:15 UTC (15 Min nach Combined)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  active-filter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Restore seen_db Cache
+        uses: actions/cache@v4
+        with:
+          path: seen_db.json
+          key: netshield-seen-db-v1
+          restore-keys: |
+            netshield-seen-db-
+
+      - name: Build active_blacklist_ipv4.txt from seen_db
+        run: |
+          python3 << 'EOF'
+          import json, os
+          from datetime import datetime, timezone, timedelta
+
+          now     = datetime.now(timezone.utc)
+          now_str = now.strftime("%Y-%m-%d %H:%M UTC")
+
+          DB_FILE   = "seen_db.json"
+          OUT_FILE  = "active_blacklist_ipv4.txt"
+
+          if not os.path.exists(DB_FILE):
+              print(f"FEHLER: {DB_FILE} nicht gefunden – bitte zuerst Update Combined Blacklist ausführen.")
+              exit(1)
+
+          with open(DB_FILE) as f:
+              db = json.load(f)
+          print(f"seen_db geladen: {len(db)} IPs")
+
+          cutoff_30 = now - timedelta(days=30)
+          active = []
+
+          for ip, data in db.items():
+              try:
+                  last_dt = datetime.strptime(data["last"], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                  # Kriterien: last_seen <= 30 Tage UND (HQ=True ODER 2+ Feeds)
+                  # Hinweis: feed_count nicht in seen_db gespeichert → HQ reicht als Proxy
+                  # Alle IPs in seen_db haben bereits 2+ Feeds oder HQ (Aufnahmebedingung)
+                  if last_dt >= cutoff_30:
+                      active.append(ip)
+              except Exception:
+                  pass
+
+          active.sort()
+          print(f"Aktive IPs (letzte 30 Tage): {len(active)}")
+
+          with open(OUT_FILE, "w") as f:
+              f.write("# NETSHIELD Active Blacklist (IPv4) – Stufe 2\n")
+              f.write(f"# Aktualisiert: {now_str}\n")
+              f.write(f"# Kriterien: last_seen <= 30 Tage + 2+ Feeds oder HQ=True\n")
+              f.write(f"# OPNsense Alias URL:\n")
+              f.write(f"# https://raw.githubusercontent.com/juergen2025sys/NETSHIELD/main/active_blacklist_ipv4.txt\n")
+              f.write(f"# Eintraege: {len(active)}\n\n")
+              f.write("\n".join(active) + "\n")
+
+          print(f"{OUT_FILE} geschrieben: {len(active)} IPs")
+          EOF
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add active_blacklist_ipv4.txt
+          if git diff --staged --quiet; then
+            echo "Keine Änderungen"
+          else
+            git commit -m "Active Filter: $(date -u '+%Y-%m-%d %H:%M') UTC"
+            git pull --rebase origin ${GITHUB_REF_NAME}
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
