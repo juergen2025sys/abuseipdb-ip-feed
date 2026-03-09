@@ -389,20 +389,20 @@ jobs:
 
       - name: Commit and Push
         run: |
-          python3 << 'EOF'
-import json, os
-from datetime import datetime, timezone
-now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-meta = {"note": "seen_db.json nur im GitHub Actions Cache (zu gross fuer Repo)", "updated": now_str}
-if os.path.exists("seen_db.json"):
-    with open("seen_db.json") as f:
-        db = json.load(f)
-    meta["total_ips"] = len(db)
-    meta["size_mb"] = round(os.path.getsize("seen_db.json") / 1024 / 1024, 1)
-    print(f"seen_db: {len(db)} IPs, {meta['size_mb']} MB → nur Cache, kein Push")
-with open("seen_db_meta.json", "w") as f:
-    json.dump(meta, f, indent=2)
-EOF
+          python3 - << 'PYEOF'
+          import json, os
+          from datetime import datetime, timezone
+          now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+          meta = {"note": "seen_db.json nur im GitHub Actions Cache (zu gross fuer Repo)", "updated": now_str}
+          if os.path.exists("seen_db.json"):
+              with open("seen_db.json") as f:
+                  db = json.load(f)
+              meta["total_ips"] = len(db)
+              meta["size_mb"] = round(os.path.getsize("seen_db.json") / 1024 / 1024, 1)
+              print(f"seen_db: {len(db)} IPs, {meta['size_mb']} MB")
+          with open("seen_db_meta.json", "w") as f:
+              json.dump(meta, f, indent=2)
+          PYEOF
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add combined_threat_blacklist_ipv4.txt active_blacklist_ipv4.txt combined_threat_blacklist_report.md seen_db_meta.json
