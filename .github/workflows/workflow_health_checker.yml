@@ -160,6 +160,8 @@ jobs:
 
               # ── IP-Sort ohne numerischen Key (lexikografisch falsch) ─────
               for i, line in enumerate(lines, 1):
+                  if not is_code_line(line):
+                      continue
                   stripped = line.strip()
                   if re.search(r'\bsorted\s*\(\s*(all_ips|ips|blacklist_ips|final_ips|active_ips)\s*\)', stripped):
                       warnings.append(f"Zeile {i}: `sorted(ips)` ohne `key=` – lexikografische Sortierung, nicht numerisch (z.B. '10.x' < '2.x'). Korrekt: `sorted(ips, key=lambda ip: tuple(int(o) for o in ip.split('.')))`")
