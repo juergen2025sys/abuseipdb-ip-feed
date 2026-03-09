@@ -1,7 +1,7 @@
 # Workflow Health Checker – Report
-**Aktualisiert:** 2026-03-09 16:34 UTC
+**Aktualisiert:** 2026-03-09 16:36 UTC
 
-**Workflows:** 17 | ✅ 16 OK | ⚠️ 1 Warnung | ❌ 0 Fehler
+**Workflows:** 17 | ✅ 17 OK | ⚠️ 0 Warnung | ❌ 0 Fehler
 
 ---
 ## Übersicht
@@ -24,15 +24,7 @@
 | `update_combined_blacklist.yml` | ✅ OK | 0 | 0 | `0 0 * * *` |
 | `update_confidence_blacklist.yml` | ✅ OK | 0 | 0 | `15 0 * * *` |
 | `vpn_proxy_detector.yml` | ✅ OK | 0 | 0 | `30 3 * * 1` |
-| `workflow_health_checker.yml` | ⚠️ WARNUNG | 0 | 1 | `0 1 * * *` |
+| `workflow_health_checker.yml` | ✅ OK | 0 | 0 | `0 1 * * *` |
 
 ---
-## ⚠️ Warnungen im Detail
-
-### `workflow_health_checker.yml`
-
-- 🟡 Commit-Message ohne UTC-Zeitstempel: `([^`
-
-
----
-*Generiert: 2026-03-09 16:34 UTC | 17 Workflow-Dateien geprüft*
+*Generiert: 2026-03-09 16:36 UTC | 17 Workflow-Dateien geprüft*
