@@ -282,6 +282,35 @@ jobs:
               feed_stats.append((local_file, len(local_ips)))
               print(f"  Lokal: {local_file} → {len(local_ips)} IPs (HQ={is_hq_local})")
 
+
+          # ── Auto-discovered Feeds einlesen ─────────────────────────────────
+          AUTO_FEEDS_FILE = "auto_discovered_feeds.json"
+          if os.path.exists(AUTO_FEEDS_FILE):
+              try:
+                  with open(AUTO_FEEDS_FILE) as af:
+                      auto_data = json.load(af)
+                  auto_feeds = auto_data.get("feeds", [])
+                  print(f"  Auto-discovered Feeds: {len(auto_feeds)}")
+
+                  def fetch_auto(feed):
+                      return fetch_ips(feed["name"], feed["url"])
+
+                  with ThreadPoolExecutor(max_workers=5) as ex:
+                      futures = {ex.submit(fetch_auto, f): f["name"] for f in auto_feeds}
+                      for future in as_completed(futures, timeout=120):
+                          name, ips = future.result()
+                          for ip in ips:
+                              ip_feed_count[ip] = ip_feed_count.get(ip, 0) + 1
+                              # Auto-discovered Feeds sind nicht HQ
+                              if ip not in ip_feeds_today:
+                                  ip_feeds_today[ip] = set()
+                              ip_feeds_today[ip].add(name)
+                          feed_stats.append((name, len(ips)))
+              except Exception as e:
+                  print(f"  WARNUNG: auto_discovered_feeds.json Fehler: {e}")
+          else:
+              print(f"  SKIP: {AUTO_FEEDS_FILE} nicht vorhanden")
+
           # ── Nur valide IPs in seen_db aufnehmen ──────────────────────────
           # Kriterium jetzt: akkumulierte Feeds >= 2 ÜBER ALLE RUNS HINWEG oder HQ
           for ip, today_feeds in ip_feeds_today.items():

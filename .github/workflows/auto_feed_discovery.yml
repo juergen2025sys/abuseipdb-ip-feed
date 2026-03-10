@@ -1,0 +1,505 @@
+name: Auto Feed Discovery
+
+on:
+  schedule:
+    - cron: '0 5 * * *'   # täglich 05:00 UTC (nach CVE-Mapper 04:00 + Duplicate Cleaner 04:30)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+  issues: none
+  packages: none
+  pull-requests: none
+  security-events: none
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: true
+
+      - name: Discover new IP Blocklists on GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 << 'EOF'
+          import urllib.request
+          import urllib.error
+          import json
+          import re
+          import os
+          import time
+          import ipaddress
+          from datetime import datetime, timezone, timedelta
+          from concurrent.futures import ThreadPoolExecutor, as_completed
+
+          now     = datetime.now(timezone.utc)
+          now_str = now.strftime("%Y-%m-%d %H:%M UTC")
+          now_day = now.strftime("%Y-%m-%d")
+
+          GH_TOKEN  = os.environ.get("GH_TOKEN", "")
+          IPV4_RE   = re.compile(r'\b((?:\d{1,3}\.){3}\d{1,3})\b')
+          READ_LIMIT = 5 * 1024 * 1024   # 5 MB Sample pro Feed
+
+          # ── Bekannte Repos – NICHT erneut aufnehmen ───────────────────────
+          # (Bereits in SOURCES oder manuell gepflegt)
+          KNOWN_REPOS = {
+              "firehol/blocklist-ipsets", "stamparm/ipsum", "stamparm/maltrail",
+              "montysecurity/C2-Tracker", "drb-ra/C2IntelFeeds",
+              "Gi7w0rm/CobaltStrikeC2Tracker", "borestad/blocklist-abuseipdb",
+              "elliotwutingfeng/ThreatFox-IOC-IPs", "elliotwutingfeng/ESET-APR-IPs",
+              "elliotwutingfeng/Spamhaus-DNSBL-IPs", "romainmarcoux/malicious-ip",
+              "romainmarcoux/malicious-outgoing-ip", "duggytuxy/malicious_ip_addresses",
+              "duggytuxy/Data-Shield_IPv4_Blocklist", "ShadowWhisperer/IPs",
+              "GridinSoft/IP-Blocklist", "T145/black-mirror", "LittleJake/ip-blacklist",
+              "actuallymentor/bluetack-ip-blacklist-generator", "sefinek/Malicious-IP-Addresses",
+              "scriptzteam/AbuseIPDB-BlackList", "axllent/iplists",
+              "mrlooker/Suspicious-IPs", "MagicTeaMC/bad-ips",
+              "ddrimus/http-threat-blocklist", "BlacKSnowDot0/packetsdatabase-db",
+              "FreakuencyFive/Public-IP-ThreatFeed", "amitambekar510/Malicious-IP-Threat-List",
+              "dolutech/blacklist-dolutech", "ZEROF/ipextractor",
+              "coyote-nl/blocklist", "bitwire-it/ipblocklist",
+              "NETMOUNTAINS/Curated-IP-Blocklist", "4IP-Solutions/threat-feeds",
+              "cybersecurity-cyna/Malicious_IP", "lula73/bot-detector",
+              "CriticalPathSecurity/Public-Intelligence-Feeds",
+              "SecOps-Institute/Tor-IP-Addresses", "Enkidu-6/tor-relay-lists",
+              "yuexuana521/honeypot-blocklist", "EdanWong/ip_list",
+              "nixbear/malicious_ips", "ufukart/Blacklist", "f3csystems/BlockList_IP",
+              "IT3ngineer/FortigateBlockList", "florentvinai/bad-ips-on-my-vps",
+              "Y3ll0w/CrowdSec-CAPI-Decisions", "cenk/trcert-malware",
+              "Tizian-Maxime-Weigt/L7-HTTP-DDoS-Flood-IP-Signature-IP-List",
+              "Ultimate-Hosts-Blacklist/Ultimate.Hosts.Blacklist",
+              "tushroy/bdix-isp-blocks", "freakuency", "magicteamc",
+              "jgamblin/Shodan-Malware-Scanning-IPs",
+          }
+
+          # ── Ausschluss-Keywords (in Repo-Name oder Topics) ────────────────
+          EXCLUDE_KEYWORDS = {
+              "geoip", "geo-ip", "geo_ip", "country", "countries", "geolocation",
+              "vpn", "datacenter", "cdn", "cloud-ip", "cloud-range",
+              "alienvault", "otx", "ads", "adblock", "adguard", "hosts",
+              "dns-blocklist", "domain", "pihole",
+          }
+
+          # ── Dateinamen-Muster für IP-Listen ───────────────────────────────
+          IP_FILE_PATTERNS = re.compile(
+              r'(?i)(ip[s_-]?(black|block|ban|threat|malicious|bad|abuse|block)?'
+              r'list|blacklist|blocklist|threat[-_]?feed|malicious|ban[-_]?list'
+              r'|ipblock|ioc|c2|botnet|scanner|bruteforce|attack)'
+              r'\.(txt|csv|ipset|netset|list|conf|sh)$'
+          )
+
+          # ── False-Positive-Schutz: bekannte legitime Ranges ──────────────
+          FP_CIDRS = [
+              "8.8.8.0/24", "8.8.4.0/24", "1.1.1.0/24", "1.0.0.0/24",
+              "34.0.0.0/9", "35.184.0.0/13", "104.16.0.0/13",
+              "13.64.0.0/11", "54.239.28.0/23",
+          ]
+          fp_nets = [ipaddress.ip_network(c, strict=False) for c in FP_CIDRS]
+
+          def gh_api(path, token=GH_TOKEN, retries=3):
+              """GitHub API Request mit Auth-Header."""
+              url = f"https://api.github.com{path}"
+              headers = {"Accept": "application/vnd.github+json",
+                         "X-GitHub-Api-Version": "2022-11-28"}
+              if token:
+                  headers["Authorization"] = f"Bearer {token}"
+              for attempt in range(retries):
+                  try:
+                      req = urllib.request.Request(url, headers=headers)
+                      with urllib.request.urlopen(req, timeout=20) as r:
+                          return json.loads(r.read().decode("utf-8"))
+                  except urllib.error.HTTPError as e:
+                      if e.code == 403:
+                          print(f"  Rate-Limit – warte 60s...")
+                          time.sleep(60)
+                      elif e.code == 422:
+                          return None
+                      else:
+                          print(f"  HTTP {e.code} für {path}")
+                          return None
+                  except Exception as ex:
+                      if attempt < retries - 1:
+                          time.sleep(5)
+                      else:
+                          print(f"  Fehler API {path}: {ex}")
+                          return None
+
+          def fetch_raw(url, limit=READ_LIMIT, timeout=25):
+              """Rohdaten eines URLs laden (max. limit Bytes)."""
+              try:
+                  req = urllib.request.Request(
+                      url, headers={"User-Agent": "NETSHIELD-AutoDiscovery/1.0"})
+                  with urllib.request.urlopen(req, timeout=timeout) as r:
+                      return r.read(limit).decode("utf-8", errors="ignore")
+              except Exception:
+                  return None
+
+          def is_valid_public_ipv4(ip):
+              try:
+                  obj = ipaddress.ip_address(ip)
+                  return (obj.version == 4 and not obj.is_private and
+                          not obj.is_loopback and not obj.is_multicast and
+                          not obj.is_reserved and not obj.is_link_local and
+                          not obj.is_unspecified)
+              except Exception:
+                  return False
+
+          def fp_rate(ips, sample_size=200):
+              """False-Positive-Rate: Anteil IPs in bekannten legitimen Ranges."""
+              sample = list(ips)[:sample_size]
+              if not sample:
+                  return 1.0
+              hits = 0
+              for ip_str in sample:
+                  try:
+                      addr = ipaddress.ip_address(ip_str)
+                      if any(addr in net for net in fp_nets):
+                          hits += 1
+                  except Exception:
+                      pass
+              return hits / len(sample)
+
+          def extract_ips(text):
+              """IPs aus Text extrahieren (alle Formate)."""
+              ips = set()
+              for m in IPV4_RE.finditer(text):
+                  ip = m.group(1)
+                  if is_valid_public_ipv4(ip):
+                      ips.add(ip)
+              return ips
+
+          # ── Schritt 1: HQ-Referenz-Set laden (Overlap-Check) ─────────────
+          print("Lade HQ-Referenz-Sets für Overlap-Check...")
+          hq_ref_ips = set()
+
+          hq_ref_urls = [
+              "https://feodotracker.abuse.ch/downloads/ipblocklist_aggressive.txt",
+              "https://talosintelligence.com/documents/ip-blacklist",
+              "https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/main/abuseipdb-s100-30d.ipv4",
+          ]
+          for url in hq_ref_urls:
+              text = fetch_raw(url)
+              if text:
+                  found = extract_ips(text)
+                  hq_ref_ips.update(found)
+                  print(f"  HQ-Ref {url.split('/')[-1]}: {len(found)} IPs")
+
+          print(f"HQ-Referenz gesamt: {len(hq_ref_ips)} IPs\n")
+
+          # ── Schritt 2: GitHub-Suche nach neuen Feeds ──────────────────────
+          SEARCH_TOPICS = [
+              "ip-blocklist",
+              "ip-blacklist",
+              "threat-intel",
+              "malicious-ip",
+              "threat-intelligence",
+              "firewall-blocklist",
+              "ip-threat-feed",
+          ]
+
+          SEARCH_CODE_QUERIES = [
+              "ip blocklist filename:blacklist.txt",
+              "malicious ip list filename:*.ipset",
+              "threat feed ipv4 filename:*.txt",
+          ]
+
+          candidate_repos = {}  # full_name → repo metadata
+
+          # Topic-Suche
+          for topic in SEARCH_TOPICS:
+              print(f"Suche Topic: {topic}...")
+              data = gh_api(f"/search/repositories?q=topic:{topic}&sort=updated&order=desc&per_page=30")
+              time.sleep(2)   # Search-API: max 30 req/min
+              if not data:
+                  continue
+              for repo in data.get("items", []):
+                  full_name = repo["full_name"]
+                  if full_name in KNOWN_REPOS:
+                      continue
+                  # Ausschluss-Keyword-Check
+                  name_lower = full_name.lower()
+                  topics_lower = " ".join(repo.get("topics", [])).lower()
+                  desc_lower   = (repo.get("description") or "").lower()
+                  combined     = f"{name_lower} {topics_lower} {desc_lower}"
+                  if any(kw in combined for kw in EXCLUDE_KEYWORDS):
+                      continue
+                  candidate_repos[full_name] = {
+                      "stars":       repo.get("stargazers_count", 0),
+                      "forks":       repo.get("forks_count", 0),
+                      "updated":     repo.get("updated_at", ""),
+                      "pushed":      repo.get("pushed_at", ""),
+                      "description": repo.get("description", ""),
+                      "topics":      repo.get("topics", []),
+                  }
+
+          print(f"\nKandidaten nach Suche: {len(candidate_repos)} Repos\n")
+
+          # ── Schritt 3: Bestehende auto_discovered_feeds.json laden ────────
+          AUTO_FILE = "auto_discovered_feeds.json"
+          existing_feeds = {}
+          existing_rejected = set()
+          if os.path.exists(AUTO_FILE):
+              try:
+                  with open(AUTO_FILE) as f:
+                      auto_data = json.load(f)
+                  for feed in auto_data.get("feeds", []):
+                      existing_feeds[feed["name"]] = feed
+                  existing_rejected = set(auto_data.get("rejected_repos", []))
+                  print(f"Bestehende auto_discovered_feeds: {len(existing_feeds)} Feeds, "
+                        f"{len(existing_rejected)} abgelehnte Repos")
+              except Exception:
+                  pass
+
+          # ── Schritt 4: Jedes Kandidaten-Repo bewerten ─────────────────────
+          approved_feeds  = dict(existing_feeds)   # name → feed-dict
+          rejected_repos  = set(existing_rejected) | set(KNOWN_REPOS)
+          evaluation_log  = []
+
+          for full_name, meta in candidate_repos.items():
+              if full_name in rejected_repos:
+                  continue
+
+              print(f"\nBewerte: {full_name}")
+
+              # ── Kriterium 1: Aktualität (letzter Push max. 30 Tage) ───────
+              pushed_str = meta.get("pushed", "")
+              try:
+                  pushed_dt = datetime.strptime(
+                      pushed_str[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                  days_old = (now - pushed_dt).days
+              except Exception:
+                  days_old = 999
+              if days_old > 30:
+                  print(f"  ❌ Aktualität: {days_old} Tage alt (max. 30)")
+                  rejected_repos.add(full_name)
+                  evaluation_log.append({"repo": full_name, "result": "REJECTED",
+                                         "reason": f"Zu alt: {days_old}d"})
+                  continue
+              print(f"  ✅ Aktualität: {days_old} Tage alt")
+
+              # ── IP-Dateien im Repo suchen ─────────────────────────────────
+              time.sleep(0.5)
+              tree = gh_api(f"/repos/{full_name}/git/trees/HEAD?recursive=1")
+              if not tree:
+                  rejected_repos.add(full_name)
+                  continue
+
+              ip_files = []
+              for item in tree.get("tree", []):
+                  if item.get("type") != "blob":
+                      continue
+                  fname = item["path"].split("/")[-1]
+                  if IP_FILE_PATTERNS.search(fname):
+                      size = item.get("size", 0)
+                      ip_files.append({"path": item["path"], "size": size})
+
+              if not ip_files:
+                  print(f"  ❌ Keine passenden IP-Dateien gefunden")
+                  rejected_repos.add(full_name)
+                  evaluation_log.append({"repo": full_name, "result": "REJECTED",
+                                         "reason": "Keine IP-Datei"})
+                  continue
+
+              # Größte Datei bevorzugen (wahrscheinlich Haupt-Liste)
+              ip_files.sort(key=lambda x: x["size"], reverse=True)
+              best_file = ip_files[0]
+              raw_url   = (f"https://raw.githubusercontent.com/{full_name}/"
+                           f"HEAD/{best_file['path']}")
+              print(f"  Datei: {best_file['path']} ({best_file['size']:,} Bytes)")
+
+              # ── Datei herunterladen ───────────────────────────────────────
+              time.sleep(0.5)
+              text = fetch_raw(raw_url)
+              if not text:
+                  print(f"  ❌ Download fehlgeschlagen")
+                  rejected_repos.add(full_name)
+                  continue
+
+              ips = extract_ips(text)
+
+              # ── Kriterium 2: Größe (100 – 500.000 IPs) ───────────────────
+              if not (100 <= len(ips) <= 500_000):
+                  print(f"  ❌ Größe: {len(ips)} IPs (erwartet 100–500.000)")
+                  rejected_repos.add(full_name)
+                  evaluation_log.append({"repo": full_name, "result": "REJECTED",
+                                         "reason": f"Größe: {len(ips)} IPs"})
+                  continue
+              print(f"  ✅ Größe: {len(ips)} IPs")
+
+              # ── Kriterium 4: False-Positive-Rate ─────────────────────────
+              fp = fp_rate(ips)
+              if fp > 0.05:    # max. 5% FP-Rate
+                  print(f"  ❌ False-Positive-Rate: {fp:.1%} (max. 5%)")
+                  rejected_repos.add(full_name)
+                  evaluation_log.append({"repo": full_name, "result": "REJECTED",
+                                         "reason": f"FP-Rate: {fp:.1%}"})
+                  continue
+              print(f"  ✅ False-Positive-Rate: {fp:.1%}")
+
+              # ── Kriterium 3: Overlap mit HQ-Feeds (min. 20%) ─────────────
+              # Prüfen ob genug Überschneidung mit bekannten guten Feeds
+              if hq_ref_ips:
+                  overlap = len(ips & hq_ref_ips)
+                  overlap_pct = overlap / len(ips) if ips else 0
+                  # Mindestanforderung: 20% Overlap ODER mind. 50 gemeinsame IPs
+                  if overlap_pct < 0.20 and overlap < 50:
+                      print(f"  ❌ Overlap mit HQ-Feeds: {overlap_pct:.1%} / {overlap} IPs (min. 20% oder 50 IPs)")
+                      rejected_repos.add(full_name)
+                      evaluation_log.append({"repo": full_name, "result": "REJECTED",
+                                             "reason": f"Overlap zu gering: {overlap_pct:.1%}"})
+                      continue
+                  print(f"  ✅ Overlap mit HQ-Feeds: {overlap_pct:.1%} ({overlap} IPs)")
+              else:
+                  overlap_pct = 0
+                  overlap     = 0
+                  print(f"  ⚠️ Overlap-Check übersprungen (kein HQ-Ref geladen)")
+
+              # ── Kriterium 5: Format-Qualität ──────────────────────────────
+              # Mindestens 50% der Zeilen sollten IPs sein (kein Spam-Format)
+              total_lines = max(len([l for l in text.splitlines() if l.strip()
+                                     and not l.startswith("#")]), 1)
+              ip_ratio = len(ips) / total_lines
+              if ip_ratio < 0.30:
+                  print(f"  ❌ Format-Qualität: nur {ip_ratio:.1%} der Zeilen sind IPs")
+                  rejected_repos.add(full_name)
+                  evaluation_log.append({"repo": full_name, "result": "REJECTED",
+                                         "reason": f"Format-Qualität: {ip_ratio:.1%}"})
+                  continue
+              print(f"  ✅ Format-Qualität: {ip_ratio:.1%} IP-Zeilen")
+
+              # ── Kriterium 6: Repo-Reputation (Bonus, kein Pflicht) ────────
+              stars = meta.get("stars", 0)
+              forks = meta.get("forks", 0)
+              rep_score = min(stars * 2 + forks * 3, 100)
+              print(f"  ⭐ Reputation: {stars} Stars / {forks} Forks → Score {rep_score}")
+
+              # ── Feed ANGENOMMEN ───────────────────────────────────────────
+              feed_name = re.sub(r'[^a-z0-9_]', '_',
+                                 full_name.lower().replace('/', '_'))[:60]
+              # Sicherstellen dass Name einzigartig ist
+              if feed_name in approved_feeds:
+                  feed_name = feed_name + "_v2"
+
+              approved_feeds[feed_name] = {
+                  "name":          feed_name,
+                  "url":           raw_url,
+                  "repo":          full_name,
+                  "file":          best_file["path"],
+                  "added":         now_day,
+                  "last_checked":  now_day,
+                  "ip_count":      len(ips),
+                  "overlap_pct":   round(overlap_pct * 100, 1),
+                  "fp_rate":       round(fp * 100, 2),
+                  "rep_score":     rep_score,
+                  "stars":         stars,
+                  "days_old":      days_old,
+                  "hq":            False,   # Auto-discovered nie sofort HQ
+              }
+
+              evaluation_log.append({
+                  "repo":        full_name,
+                  "result":      "APPROVED",
+                  "feed_name":   feed_name,
+                  "ips":         len(ips),
+                  "overlap_pct": round(overlap_pct * 100, 1),
+                  "fp_rate":     round(fp * 100, 2),
+                  "stars":       stars,
+              })
+              print(f"  ✅ ANGENOMMEN als '{feed_name}' ({len(ips)} IPs)")
+
+          # ── Schritt 5: auto_discovered_feeds.json speichern ───────────────
+          new_feeds_count = len(approved_feeds) - len(existing_feeds)
+          output = {
+              "updated":         now_str,
+              "total_feeds":     len(approved_feeds),
+              "new_this_run":    new_feeds_count,
+              "rejected_repos":  sorted(rejected_repos),
+              "feeds":           list(approved_feeds.values()),
+          }
+
+          with open(AUTO_FILE, "w", encoding="utf-8") as f:
+              json.dump(output, f, indent=2, ensure_ascii=False)
+
+          print(f"\nauto_discovered_feeds.json gespeichert: "
+                f"{len(approved_feeds)} Feeds gesamt | +{new_feeds_count} neu")
+
+          # ── Schritt 6: Report ─────────────────────────────────────────────
+          new_approved  = [e for e in evaluation_log if e["result"] == "APPROVED"]
+          new_rejected  = [e for e in evaluation_log if e["result"] == "REJECTED"]
+
+          lines = []
+          lines.append("# Auto Feed Discovery – Report")
+          lines.append(f"**Aktualisiert:** {now_str}\n")
+          lines.append("---")
+          lines.append(f"## Zusammenfassung\n")
+          lines.append(f"| Metrik | Wert |")
+          lines.append(f"|---|---|")
+          lines.append(f"| Repos gesucht | **{len(candidate_repos)}** |")
+          lines.append(f"| Dieser Run: Angenommen | **{len(new_approved)}** |")
+          lines.append(f"| Dieser Run: Abgelehnt | **{len(new_rejected)}** |")
+          lines.append(f"| Feeds gesamt (aktiv) | **{len(approved_feeds)}** |")
+          lines.append(f"| Abgelehnte Repos (gesamt) | **{len(rejected_repos)}** |")
+          lines.append(f"| HQ-Referenz-IPs | **{len(hq_ref_ips)}** |")
+
+          if new_approved:
+              lines.append("\n---")
+              lines.append("## ✅ Neu angenommene Feeds\n")
+              lines.append("| Feed | Repo | IPs | Overlap | FP-Rate | Stars |")
+              lines.append("|---|---|---|---|---|---|")
+              for e in new_approved:
+                  lines.append(
+                      f"| `{e['feed_name']}` | [{e['repo']}]"
+                      f"(https://github.com/{e['repo']}) | "
+                      f"{e['ips']:,} | {e['overlap_pct']}% | {e['fp_rate']}% | {e['stars']} |"
+                  )
+
+          if new_rejected:
+              lines.append("\n---")
+              lines.append("## ❌ Abgelehnte Repos (dieser Run)\n")
+              lines.append("| Repo | Grund |")
+              lines.append("|---|---|")
+              for e in new_rejected:
+                  lines.append(f"| `{e['repo']}` | {e['reason']} |")
+
+          if approved_feeds:
+              lines.append("\n---")
+              lines.append("## 📋 Alle aktiven Auto-Feeds\n")
+              lines.append("| Feed | IPs | Overlap | Stars | Hinzugefügt |")
+              lines.append("|---|---|---|---|---|")
+              for feed in sorted(approved_feeds.values(),
+                                 key=lambda x: x.get("rep_score", 0), reverse=True):
+                  lines.append(
+                      f"| `{feed['name']}` | {feed['ip_count']:,} | "
+                      f"{feed['overlap_pct']}% | {feed.get('stars', 0)} | {feed['added']} |"
+                  )
+
+          lines.append(f"\n---\n*Generiert: {now_str}*")
+
+          with open("auto_feed_discovery_report.md", "w", encoding="utf-8") as f:
+              f.write("\n".join(lines))
+          print("auto_feed_discovery_report.md geschrieben")
+          EOF
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add auto_discovered_feeds.json auto_feed_discovery_report.md
+          if git diff --staged --quiet; then
+            echo "Keine neuen Feeds entdeckt"
+          else
+            git commit -m "Auto Feed Discovery: $(date -u '+%Y-%m-%d %H:%M') UTC"
+            git pull --rebase origin ${GITHUB_REF_NAME}
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
