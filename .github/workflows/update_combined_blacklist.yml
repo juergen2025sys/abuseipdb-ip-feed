@@ -7,11 +7,6 @@ on:
 
 permissions:
   contents: write
-  actions: read
-  issues: none
-  packages: none
-  pull-requests: none
-  security-events: none
 
 
 concurrency:
@@ -24,12 +19,12 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@v4
         with:
           persist-credentials: true
 
       - name: Restore seen_db Cache
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        uses: actions/cache@v4
         with:
           path: seen_db.json
           key: netshield-seen-db-v1
@@ -275,6 +270,8 @@ jobs:
           ip_in_hq      = set()
           feed_stats    = []
 
+          ip_feeds_today = {}   # ip → set(feed_namen) für diesen Run
+
           with ThreadPoolExecutor(max_workers=15) as executor:
               futures = {executor.submit(fetch_ips, n, u): n for n, (u, _) in SOURCES.items()}
               for future in as_completed(futures, timeout=600):
@@ -283,6 +280,10 @@ jobs:
                       ip_feed_count[ip] = ip_feed_count.get(ip, 0) + 1
                       if name in HIGH_QUALITY:
                           ip_in_hq.add(ip)
+                      # Feed-Name pro IP merken
+                      if ip not in ip_feeds_today:
+                          ip_feeds_today[ip] = set()
+                      ip_feeds_today[ip].add(name)
                   feed_stats.append((name, len(ips)))
 
           # ── Lokale Sub-Workflow-Dateien einlesen ───────────────────────────
@@ -311,19 +312,41 @@ jobs:
                   ip_feed_count[ip] = ip_feed_count.get(ip, 0) + 1
                   if is_hq_local:
                       ip_in_hq.add(ip)
+                  if ip not in ip_feeds_today:
+                      ip_feeds_today[ip] = set()
+                  ip_feeds_today[ip].add(local_file)
               feed_stats.append((local_file, len(local_ips)))
               print(f"  Lokal: {local_file} → {len(local_ips)} IPs (HQ={is_hq_local})")
 
-          # ── Nur valide IPs in seen_db aufnehmen (2+ Feeds ODER HQ) ────────
-          current_valid = {ip for ip, count in ip_feed_count.items()
-                           if count >= 2 or ip in ip_in_hq}
-          for ip in current_valid:
+          # ── Nur valide IPs in seen_db aufnehmen ──────────────────────────
+          # Kriterium jetzt: akkumulierte Feeds >= 2 ÜBER ALLE RUNS HINWEG oder HQ
+          for ip, today_feeds in ip_feeds_today.items():
               if ip in db:
                   db[ip]["last"] = now_day
+                  # Feeds akkumulieren
+                  existing = set(db[ip].get("feeds", []))
+                  db[ip]["feeds"] = sorted(existing | today_feeds)
                   if ip in ip_in_hq:
                       db[ip]["hq"] = True
               else:
-                  db[ip] = {"first": now_day, "last": now_day, "hq": ip in ip_in_hq}
+                  db[ip] = {
+                      "first": now_day,
+                      "last":  now_day,
+                      "hq":    ip in ip_in_hq,
+                      "feeds": sorted(today_feeds),
+                  }
+
+          # Aufnahme-Filter: mindestens 2 verschiedene Feeds (gesamt) oder HQ
+          current_valid = {
+              ip for ip, data in db.items()
+              if len(data.get("feeds", [])) >= 2 or data.get("hq")
+          }
+          # IPs die das Kriterium noch nicht erfüllen aus db entfernen
+          # (sie wurden oben temporär eingefügt, werden aber erst behalten
+          #  wenn sie das Kriterium erfüllen)
+          for ip in list(db.keys()):
+              if ip not in current_valid:
+                  del db[ip]
 
           # ── 365-Tage-Ablauf ────────────────────────────────────────────────
           expired = []
@@ -361,7 +384,10 @@ jobs:
           for ip, data in db.items():
               try:
                   last_dt = datetime.strptime(data["last"], "%Y-%m-%d").replace(tzinfo=timezone.utc)
-                  if last_dt >= cutoff_30 and (data.get("hq") or ip_feed_count.get(ip, 0) >= 2):
+                  # Kriterium: in den letzten 30 Tagen gesehen UND
+                  # mindestens 2 verschiedene Feeds (akkumuliert) oder HQ
+                  feed_count = len(data.get("feeds", []))
+                  if last_dt >= cutoff_30 and (data.get("hq") or feed_count >= 2):
                       active_ips.append(ip)
               except Exception:
                   pass
@@ -391,7 +417,7 @@ jobs:
           EOF
 
       - name: Save seen_db Cache
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        uses: actions/cache@v4
         with:
           path: seen_db.json
           key: netshield-seen-db-v1-${{ github.run_id }}
