@@ -37,8 +37,6 @@ jobs:
           import re
           import os
           import ipaddress
-          import socket
-          import time
           from datetime import datetime, timezone
 
           now = datetime.now(timezone.utc)
@@ -128,50 +126,18 @@ jobs:
           print(f"\nBlacklist geladen: {len(blacklist_ips)} IPs")
           print("Prüfe auf False Positives...")
 
-          # ── False-Positive-Erkennung ──────────────────────────────────────
-          import concurrent.futures
-
+          # ── False-Positive-Erkennung (nur Whitelist-CIDR) ────────────────
           false_positives   = []
           whitelist_hits    = []
           reverse_dns_legit = []
 
-          LEGIT_DOMAINS = [
-              "google.com", "cloudflare.com", "akamai.com",
-              "fastly.net", "amazonaws.com", "microsoft.com",
-              "apple.com", "facebook.com", "twitter.com",
-              "youtube.com", "netflix.com", "cdn77.com",
-              "edgecastcdn.net", "incapsula.com"
-          ]
-
-          def check_ip(ip):
+          print(f"Prüfe {len(blacklist_ips)} IPs gegen Whitelist...")
+          for i, ip in enumerate(blacklist_ips):
               if is_whitelisted(ip):
-                  return ("whitelist", ip, "Bekannte legitime IP-Range (CDN/Cloud)")
-              try:
-                  hostname, _, _ = socket.gethostbyaddr(ip)
-                  hostname = hostname.lower()
-                  for domain in LEGIT_DOMAINS:
-                      if domain in hostname:
-                          return ("dns", ip, hostname)
-              except:
-                  pass
-              return None
-
-          print(f"Prüfe {len(blacklist_ips)} IPs (parallel, 50 Threads)...")
-          with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
-              results = list(executor.map(check_ip, blacklist_ips))
-
-          for i, result in enumerate(results):
-              if i % 5000 == 0:
-                  print(f"  {i}/{len(blacklist_ips)}...")
-              if result is None:
-                  continue
-              kind, ip, info = result
-              if kind == "whitelist":
-                  whitelist_hits.append((ip, info))
+                  whitelist_hits.append((ip, "Bekannte legitime IP-Range (CDN/Cloud)"))
                   false_positives.append(ip)
-              elif kind == "dns":
-                  reverse_dns_legit.append((ip, info))
-                  false_positives.append(ip)
+
+          print(f"  Fertig. {len(false_positives)} False Positives gefunden.")
 
           print(f"\nFalse Positives gefunden: {len(false_positives)}")
           print(f"  Whitelist-Treffer:    {len(whitelist_hits)}")
