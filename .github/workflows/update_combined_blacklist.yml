@@ -111,21 +111,21 @@ jobs:
               # ── FireHOL & Emerging Threats ────────────────────────────────
               "firehol_level1":             ("https://iplists.firehol.org/files/firehol_level1.netset", True),
               "firehol_level2":             ("https://iplists.firehol.org/files/firehol_level2.netset", True),
-              "firehol_level3":             ("https://iplists.firehol.org/files/firehol_level3.netset", False),
+              "firehol_level3":             ("https://iplists.firehol.org/files/firehol_level3.netset", True),
               "firehol_level4":             ("https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level4.netset", False),
-              "firehol_webclient":          ("https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_webclient.netset", False),
-              "firehol_webserver":          ("https://iplists.firehol.org/files/firehol_webserver.netset", False),
-              "firehol_proxies":            ("https://iplists.firehol.org/files/firehol_proxies.netset", False),
-              "firehol_abusers_1d":         ("https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_abusers_1d.netset", False),
+              "firehol_webclient":          ("https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_webclient.netset", True),
+              "firehol_webserver":          ("https://iplists.firehol.org/files/firehol_webserver.netset", True),
+              "firehol_proxies":            ("https://iplists.firehol.org/files/firehol_proxies.netset", True),
+              "firehol_abusers_1d":         ("https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_abusers_1d.netset", True),
               "et_block":                   ("https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt", True),
               "et_compromised":             ("https://rules.emergingthreats.net/blockrules/compromised-ips.txt", True),
               "spamhaus_drop":              ("https://www.spamhaus.org/drop/drop.txt", True),
               "spamhaus_edrop":             ("https://www.spamhaus.org/drop/edrop.txt", True),
               "blocklist_de_all":           ("https://lists.blocklist.de/lists/all.txt", True),
-              "blocklist_de_export":        ("https://www.blocklist.de/downloads/export-ips_all.txt", False),
-              "blocklist_de_strongips":     ("https://lists.blocklist.de/lists/strongips.txt", False),
+              "blocklist_de_export":        ("https://www.blocklist.de/downloads/export-ips_all.txt", True),
+              "blocklist_de_strongips":     ("https://lists.blocklist.de/lists/strongips.txt", True),
               "blocklist_de_getlast":       ("https://api.blocklist.de/getlast.php?time=43200", False),
-              "blocklist_de_ssh":           ("https://lists.blocklist.de/lists/ssh.txt", False),
+              "blocklist_de_ssh":           ("https://lists.blocklist.de/lists/ssh.txt", True),
               "blocklist_de_mail":          ("https://lists.blocklist.de/lists/mail.txt", False),
               "blocklist_de_apache":        ("https://lists.blocklist.de/lists/apache.txt", False),
               "blocklist_de_imap":          ("https://lists.blocklist.de/lists/imap.txt", False),
@@ -133,15 +133,15 @@ jobs:
 
               # ── C2 / Botnet ───────────────────────────────────────────────
               "c2_tracker":                 ("https://raw.githubusercontent.com/montysecurity/C2-Tracker/main/data/all.txt", True),
-              "c2_iplist":                  ("https://raw.githubusercontent.com/drb-ra/C2IntelFeeds/master/feeds/IPC2s.csv", False),
-              "cobalt_strike_ips":          ("https://raw.githubusercontent.com/Gi7w0rm/CobaltStrikeC2Tracker/main/lists/IPs.txt", False),
+              "c2_iplist":                  ("https://raw.githubusercontent.com/drb-ra/C2IntelFeeds/master/feeds/IPC2s.csv", True),
+              "cobalt_strike_ips":          ("https://raw.githubusercontent.com/Gi7w0rm/CobaltStrikeC2Tracker/main/lists/IPs.txt", True),
 
               # ── SSH / Brute-Force ─────────────────────────────────────────
               "stopforumspam_toxic":        ("https://www.stopforumspam.com/downloads/toxic_ip_cidr.txt", False),
 
               # ── Scanning / Recon ──────────────────────────────────────────
               "ipsum_level3":               ("https://raw.githubusercontent.com/stamparm/ipsum/master/levels/3.txt", False),
-              "ipsum_level5":               ("https://raw.githubusercontent.com/stamparm/ipsum/master/levels/5.txt", False),
+              "ipsum_level5":               ("https://raw.githubusercontent.com/stamparm/ipsum/master/levels/5.txt", True),
               "ipsum_level7":               ("https://raw.githubusercontent.com/stamparm/ipsum/master/levels/7.txt", True),
               "ipsum_master":               ("https://raw.githubusercontent.com/stamparm/ipsum/refs/heads/master/ipsum.txt", False),
               "shodan_scanners":            ("https://raw.githubusercontent.com/jgamblin/Shodan-Malware-Scanning-IPs/master/malware_ips.txt", False),
@@ -156,7 +156,7 @@ jobs:
 
               # ── AbuseIPDB ─────────────────────────────────────────────────
               "abuseipdb_s100_30d":         ("https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/main/abuseipdb-s100-30d.ipv4", True),
-              "abuseipdb_s90_30d":          ("https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/main/abuseipdb-s90-30d.ipv4", False),
+              "abuseipdb_s90_30d":          ("https://raw.githubusercontent.com/borestad/blocklist-abuseipdb/main/abuseipdb-s90-30d.ipv4", True),
               "abuseipdb_tmiland":          ("https://abuseipdb.tmiland.com/abuseipdb.txt", False),
               "abuseipdb_score75":          ("https://raw.githubusercontent.com/LittleJake/ip-blacklist/refs/heads/main/abuseipdb_blacklist_ip_score_75.txt", False),
               "abuseipdb_score100":         ("https://raw.githubusercontent.com/LittleJake/ip-blacklist/refs/heads/main/abuseipdb_blacklist_ip_score_100.txt", True),
