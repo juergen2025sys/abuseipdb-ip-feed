@@ -189,6 +189,7 @@ jobs:
               "tor_secops":                 ("https://raw.githubusercontent.com/SecOps-Institute/Tor-IP-Addresses/master/tor-exit-nodes.lst", True),
               "tor_neblink":                ("https://www.neblink.net/blocklist/TorExitNodes.txt", False),
               "tor_enkidu":                 ("https://raw.githubusercontent.com/Enkidu-6/tor-relay-lists/main/relays-v4.txt", False),
+          }
 
           # ── seen_db laden ──────────────────────────────────────────────────
           db = {}
