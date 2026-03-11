@@ -59,12 +59,9 @@ jobs:
               "172.64.0.0/13", "162.158.0.0/15", "198.41.128.0/17",
               "104.18.0.0/15",                       # Cloudflare (104.18.x.x)
               "172.64.155.0/24",                     # Cloudflare (172.64.155.x)
-              # Microsoft / Office365 / Teams
-              "13.64.0.0/11", "13.96.0.0/13", "40.64.0.0/10",
-              "52.96.0.0/14", "52.100.0.0/14",       # Office365 / Exchange Online
-              "52.108.0.0/14", "52.112.0.0/14",      # Microsoft Teams / Skype
-              "52.120.0.0/14",                        # Microsoft (52.109.x.x liegt hier drin)
-              "104.40.0.0/13", "104.146.0.0/15",
+              # Microsoft (nur Core-Dienste, kein Azure Cloud)
+              # Azure-Ranges bewusst NICHT whitelisted – werden häufig für
+              # Angriffe missbraucht (gemietete VMs, C2-Server etc.)
               # Amazon AWS (öffentliche Dienste)
               "54.239.28.0/23", "54.239.192.0/19",
               # Akamai CDN
