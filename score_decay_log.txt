@@ -1,5 +1,5 @@
-# Score Decay Log | 2026-03-09 20:03 UTC
-# DB: 2311839 IPs
+# Score Decay Log | 2026-03-11 19:31 UTC
+# DB: 2859128 IPs
 
 # ZOMBIE IPs (Score≥20, 30+ Tage inaktiv)
 
