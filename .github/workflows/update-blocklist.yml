@@ -4,7 +4,7 @@ on:
   schedule:
     - cron: '0 3 * * 1'  # Jeden Montag um 03:00 UTC
     - cron: '0 3 * * 3'  # Jeden Mittwoch um 03:00 UTC
-  workflow_dispatch:       # Auch manuell per Knopfdruck auslösbar
+  workflow_dispatch:     # Manuell startbar
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -17,10 +17,10 @@ permissions:
   pull-requests: none
   security-events: none
 
-
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
+
 jobs:
   update-blocklist:
     runs-on: ubuntu-latest
@@ -36,7 +36,9 @@ jobs:
         run: |
           python3 << 'EOF'
           import urllib.request
+          import urllib.error
           import time
+          import ipaddress
 
           countries = [
               "AF","AX","AL","DZ","AS","AD","AO","AI","AQ","AG","AR","AM","AW","AU","AT","AZ",
@@ -61,20 +63,38 @@ jobs:
           all_ips = set()
           errors = []
 
+          def sort_key(entry):
+              net = ipaddress.ip_network(entry, strict=False)
+              return (int(net.network_address), net.prefixlen)
+
           for i, cc in enumerate(countries):
               url = f"{base_url}/{cc}_IPv4.txt"
               try:
                   with urllib.request.urlopen(url, timeout=15) as response:
-                      content = response.read().decode('utf-8')
-                      lines = [l.strip() for l in content.splitlines() if l.strip() and l[0].isdigit()]
+                      content = response.read().decode("utf-8")
+                      lines = [
+                          l.strip()
+                          for l in content.splitlines()
+                          if l.strip() and l[0].isdigit()
+                      ]
                       all_ips.update(lines)
                       print(f"[{i+1}/{len(countries)}] {cc} - {len(lines)} entries")
+
+              except urllib.error.HTTPError as e:
+                  if e.code == 404:
+                      print(f"[{i+1}/{len(countries)}] {cc} - 0 entries (404)")
+                  else:
+                      print(f"[{i+1}/{len(countries)}] {cc} - ERROR: HTTP Error {e.code}")
+                      errors.append(cc)
+
               except Exception as e:
                   print(f"[{i+1}/{len(countries)}] {cc} - ERROR: {e}")
                   errors.append(cc)
+
               time.sleep(0.1)
 
-          sorted_ips = sorted(all_ips, key=lambda ip: tuple(int(o) for o in ip.split('.')))
+          sorted_ips = sorted(all_ips, key=sort_key)
+
           with open("all_countries_ipv4.txt", "w", encoding="utf-8") as f:
               f.write("\n".join(sorted_ips) + "\n")
 
