@@ -1,9 +1,9 @@
 # Combined Threat Blacklist Report
 
-- Aktualisiert: **2026-03-11 21:27 UTC**
+- Aktualisiert: **2026-03-11 21:38 UTC**
 - Feeds gesamt: **112**
-- Stufe 1 (combined): **2859393** IPs
-- Stufe 2 (active, 30 Tage): **2859393** IPs
+- Stufe 1 (combined): **2859409** IPs
+- Stufe 2 (active, 30 Tage): **2859409** IPs
 - Abgelaufen & entfernt: **0**
 
 ## Feed-Statistik
@@ -26,31 +26,31 @@
 | `amitambekar_threats` | 139986 |
 | `romainmarcoux_outgoing_aa` | 131072 |
 | `abuseipdb_axllent` | 107853 |
-| `netmountains_blocklist` ⭐ | 98664 |
+| `netmountains_blocklist` ⭐ | 98767 |
 | `data_shield` | 87605 |
 | `firehol_level4` | 84987 |
 | `4ip_high_security` | 74950 |
-| `rtbh_output` | 61754 |
+| `rtbh_output` | 61785 |
 | `romainmarcoux_outgoing_ab` | 47950 |
 | `zerof_ipextractor` | 34357 |
 | `threatfox_ioc` ⭐ | 33244 |
 | `edanwong` | 32071 |
 | `blacksnowdot_packets` | 30902 |
-| `blocklist_de_all` ⭐ | 28120 |
-| `blocklist_de_export` ⭐ | 28120 |
+| `blocklist_de_all` ⭐ | 28119 |
+| `blocklist_de_export` ⭐ | 28119 |
 | `freakuency_threatfeed` | 27196 |
 | `firehol_level2` ⭐ | 20789 |
 | `ipsum_level3` | 19997 |
-| `urlhaus_ips` ⭐ | 18364 |
+| `urlhaus_ips` ⭐ | 18367 |
 | `littlejake_all_blacklist` | 17729 |
 | `binaryedge_scanners` | 16857 |
 | `bot_detector_blacklist_ipv4.txt` | 15530 |
-| `cinsscore` ⭐ | 15000 |
 | `cinsarmy` ⭐ | 15000 |
+| `cinsscore` ⭐ | 15000 |
 | `blocklist_de_mail` | 13674 |
 | `trcert_malware` ⭐ | 13646 |
-| `firehol_level3` ⭐ | 12825 |
-| `blocklist_de_apache` | 11797 |
+| `firehol_level3` ⭐ | 12836 |
+| `blocklist_de_apache` | 11743 |
 | `abuseipdb_scriptzteam` | 9996 |
 | `abuseipdb_tmiland` | 9995 |
 | `dolutech_blacklist` | 9986 |
@@ -61,21 +61,21 @@
 | `abuseipdb_score100` ⭐ | 9322 |
 | `florent_banned` | 9107 |
 | `pgl_yoyo_adservers` | 8909 |
-| `blocklist_de_getlast` | 8410 |
+| `blocklist_de_getlast` | 8411 |
 | `turris_greylist` ⭐ | 8067 |
 | `tor_exit_nodes.txt` | 7927 |
 | `feodo_aggressive` ⭐ | 7607 |
-| `tor_danme` ⭐ | 7285 |
+| `tor_danme` ⭐ | 7271 |
 | `tor_enkidu` | 7235 |
-| `blocklist_de_ssh` ⭐ | 7105 |
-| `shadowwhisperer_hackers` | 6040 |
+| `blocklist_de_ssh` ⭐ | 7131 |
+| `shadowwhisperer_hackers` | 6046 |
 | `firehol_abusers_1d` ⭐ | 5959 |
 | `nixbear_malicious` | 5935 |
 | `bdix_prefix_ipv4` | 5623 |
 | `amitambekar_threats_aa` | 4577 |
-| `greensnow` ⭐ | 4570 |
+| `greensnow` ⭐ | 4571 |
 | `firehol_level1` ⭐ | 4563 |
-| `blocklist_de_imap` | 4474 |
+| `blocklist_de_imap` | 4476 |
 | `cloudzy` ⭐ | 3578 |
 | `cyna_malicious` | 3397 |
 | `f3csystems` | 3229 |
@@ -83,7 +83,7 @@
 | `c2_tracker` ⭐ | 2377 |
 | `binary_defense` ⭐ | 2373 |
 | `ipsum_level5` ⭐ | 1924 |
-| `interserver` | 1573 |
+| `interserver` | 1574 |
 | `et_block` ⭐ | 1555 |
 | `spamhaus_drop` ⭐ | 1528 |
 | `bbcan177` | 1383 |
@@ -99,7 +99,7 @@
 | `hsenr_enterprise_honeypot_platform` | 444 |
 | `hsenr_enterprise_honeypot_platform_v2` | 444 |
 | `ddrimus_http_threats` | 356 |
-| `blocklist_de_ftp` | 334 |
+| `blocklist_de_ftp` | 338 |
 | `blocklist_de_strongips` ⭐ | 312 |
 | `crowdsec_ssh` ⭐ | 298 |
 | `turntuptechnologies_iocs` | 262 |
@@ -119,13 +119,13 @@
 | `bazaar_c2` | 0 |
 | `spamhaus_edrop` ⭐ | 0 |
 | `cobalt_strike_ips` ⭐ | 0 |
-| `shodan_scanners` | 0 |
 | `spamhaus_pbl` | 0 |
+| `shodan_scanners` | 0 |
 | `normshield_ssh` | 0 |
 | `abuseipdb_s90_30d` ⭐ | 0 |
 | `mrlooker_threats` | 0 |
 | `gridinsoft` | 0 |
 | `duggytuxy_agr` | 0 |
-| `eset_apr` | 0 |
 | `talos_intelligence` ⭐ | 0 |
+| `eset_apr` | 0 |
 | `phishing_army` | 0 |
