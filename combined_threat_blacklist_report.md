@@ -1,9 +1,9 @@
 # Combined Threat Blacklist Report
 
-- Aktualisiert: **2026-03-11 21:22 UTC**
+- Aktualisiert: **2026-03-11 21:27 UTC**
 - Feeds gesamt: **112**
-- Stufe 1 (combined): **2859380** IPs
-- Stufe 2 (active, 30 Tage): **2859380** IPs
+- Stufe 1 (combined): **2859393** IPs
+- Stufe 2 (active, 30 Tage): **2859393** IPs
 - Abgelaufen & entfernt: **0**
 
 ## Feed-Statistik
@@ -36,8 +36,8 @@
 | `threatfox_ioc` ⭐ | 33244 |
 | `edanwong` | 32071 |
 | `blacksnowdot_packets` | 30902 |
-| `blocklist_de_export` ⭐ | 28127 |
-| `blocklist_de_all` ⭐ | 28127 |
+| `blocklist_de_all` ⭐ | 28120 |
+| `blocklist_de_export` ⭐ | 28120 |
 | `freakuency_threatfeed` | 27196 |
 | `firehol_level2` ⭐ | 20789 |
 | `ipsum_level3` | 19997 |
@@ -50,7 +50,7 @@
 | `blocklist_de_mail` | 13674 |
 | `trcert_malware` ⭐ | 13646 |
 | `firehol_level3` ⭐ | 12825 |
-| `blocklist_de_apache` | 11845 |
+| `blocklist_de_apache` | 11797 |
 | `abuseipdb_scriptzteam` | 9996 |
 | `abuseipdb_tmiland` | 9995 |
 | `dolutech_blacklist` | 9986 |
@@ -61,21 +61,21 @@
 | `abuseipdb_score100` ⭐ | 9322 |
 | `florent_banned` | 9107 |
 | `pgl_yoyo_adservers` | 8909 |
-| `blocklist_de_getlast` | 8405 |
+| `blocklist_de_getlast` | 8410 |
 | `turris_greylist` ⭐ | 8067 |
 | `tor_exit_nodes.txt` | 7927 |
 | `feodo_aggressive` ⭐ | 7607 |
 | `tor_danme` ⭐ | 7285 |
 | `tor_enkidu` | 7235 |
-| `blocklist_de_ssh` ⭐ | 7072 |
+| `blocklist_de_ssh` ⭐ | 7105 |
 | `shadowwhisperer_hackers` | 6040 |
 | `firehol_abusers_1d` ⭐ | 5959 |
 | `nixbear_malicious` | 5935 |
 | `bdix_prefix_ipv4` | 5623 |
 | `amitambekar_threats_aa` | 4577 |
-| `greensnow` ⭐ | 4564 |
+| `greensnow` ⭐ | 4570 |
 | `firehol_level1` ⭐ | 4563 |
-| `blocklist_de_imap` | 4482 |
+| `blocklist_de_imap` | 4474 |
 | `cloudzy` ⭐ | 3578 |
 | `cyna_malicious` | 3397 |
 | `f3csystems` | 3229 |
@@ -83,7 +83,7 @@
 | `c2_tracker` ⭐ | 2377 |
 | `binary_defense` ⭐ | 2373 |
 | `ipsum_level5` ⭐ | 1924 |
-| `interserver` | 1585 |
+| `interserver` | 1573 |
 | `et_block` ⭐ | 1555 |
 | `spamhaus_drop` ⭐ | 1528 |
 | `bbcan177` | 1383 |
@@ -96,8 +96,8 @@
 | `danger_bruteforce` ⭐ | 650 |
 | `et_compromised` ⭐ | 631 |
 | `alienvault` | 609 |
-| `hsenr_enterprise_honeypot_platform_v2` | 444 |
 | `hsenr_enterprise_honeypot_platform` | 444 |
+| `hsenr_enterprise_honeypot_platform_v2` | 444 |
 | `ddrimus_http_threats` | 356 |
 | `blocklist_de_ftp` | 334 |
 | `blocklist_de_strongips` ⭐ | 312 |
@@ -120,12 +120,12 @@
 | `spamhaus_edrop` ⭐ | 0 |
 | `cobalt_strike_ips` ⭐ | 0 |
 | `shodan_scanners` | 0 |
-| `normshield_ssh` | 0 |
 | `spamhaus_pbl` | 0 |
+| `normshield_ssh` | 0 |
 | `abuseipdb_s90_30d` ⭐ | 0 |
 | `mrlooker_threats` | 0 |
-| `duggytuxy_agr` | 0 |
 | `gridinsoft` | 0 |
+| `duggytuxy_agr` | 0 |
 | `eset_apr` | 0 |
 | `talos_intelligence` ⭐ | 0 |
 | `phishing_army` | 0 |
