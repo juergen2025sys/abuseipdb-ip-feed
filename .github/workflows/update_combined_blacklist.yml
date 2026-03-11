@@ -51,28 +51,32 @@ jobs:
 
           now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-          # ── Round-Robin: 3 Keys, alle mit Score ≥ 50, je 10.000 IPs ────────────
-          # Alle drei Keys fragen denselben Mindest-Score ab (50%) und holen
-          # jeweils bis zu 10.000 IPs. Durch Round-Robin und Union werden
-          # bis zu 30.000 einzigartige IPs gesammelt (API-Limit pro Key/Tag).
-          KEY_CONFIGS = [
-              (os.environ.get("ABUSEIPDB_KEY_1", ""), 50, 10000),
-              (os.environ.get("ABUSEIPDB_KEY_2", ""), 50, 10000),
-              (os.environ.get("ABUSEIPDB_KEY_3", ""), 50, 10000),
+          # ── Fallback-Logik: Free-Plan erlaubt 1 Request/Tag pro Key ─────────────
+          # Key 1 wird zuerst versucht. Schlägt er fehl (429 Rate-Limit oder
+          # sonstiger Fehler), wird Key 2 versucht, dann Key 3.
+          # Da alle Keys dieselbe Liste zurückgeben (Free-Plan, Top-10.000
+          # nach Score ≥ 50), reicht ein erfolgreicher Request pro Tag.
+          # .strip() entfernt versehentliche Newlines/Leerzeichen aus dem Secret
+          KEYS = [
+              os.environ.get("ABUSEIPDB_KEY_1", "").strip(),
+              os.environ.get("ABUSEIPDB_KEY_2", "").strip(),
+              os.environ.get("ABUSEIPDB_KEY_3", "").strip(),
           ]
+          MIN_SCORE = 50
+          LIMIT     = 10000
 
           all_ips = set()
           stats   = []
 
-          for idx, (key, min_score, limit) in enumerate(KEY_CONFIGS, 1):
+          for idx, key in enumerate(KEYS, 1):
               if not key:
                   print(f"  Key {idx}: nicht gesetzt – übersprungen")
-                  stats.append((idx, min_score, 0, "KEY_MISSING"))
+                  stats.append((idx, 0, "KEY_MISSING"))
                   continue
 
               url = (
                   f"https://api.abuseipdb.com/api/v2/blacklist"
-                  f"?confidenceMinimum={min_score}&limit={limit}&plaintext=1"
+                  f"?confidenceMinimum={MIN_SCORE}&limit={LIMIT}&plaintext=1"
               )
               req = urllib.request.Request(url, headers={
                   "Key":    key,
@@ -84,18 +88,20 @@ jobs:
                       body   = r.read().decode("utf-8", errors="ignore")
 
                   ips = {line.strip() for line in body.splitlines()
-                         if line.strip() and not line.startswith("#")}
+                         if line.strip() and not line.startswith("#")
+                         and ":" not in line}   # IPv6 ausschließen
                   all_ips.update(ips)
-                  print(f"  Key {idx} (Score≥{min_score}): {len(ips)} IPs  [HTTP {status}]")
-                  stats.append((idx, min_score, len(ips), "OK"))
+                  print(f"  Key {idx}: {len(ips)} IPs  [HTTP {status}] – Erfolg, stoppe hier")
+                  stats.append((idx, len(ips), "OK"))
+                  break   # ← ein erfolgreicher Request reicht, nächste Keys schonen
 
               except urllib.error.HTTPError as e:
                   body = e.read().decode("utf-8", errors="ignore")[:200]
-                  print(f"  Key {idx} (Score≥{min_score}): HTTP-Fehler {e.code} – {body}")
-                  stats.append((idx, min_score, 0, f"HTTP_{e.code}"))
+                  print(f"  Key {idx}: HTTP {e.code} – {body} → versuche nächsten Key")
+                  stats.append((idx, 0, f"HTTP_{e.code}"))
               except Exception as e:
-                  print(f"  Key {idx} (Score≥{min_score}): Fehler – {e}")
-                  stats.append((idx, min_score, 0, "ERROR"))
+                  print(f"  Key {idx}: Fehler – {e} → versuche nächsten Key")
+                  stats.append((idx, 0, "ERROR"))
 
           # ── Ergebnis speichern ────────────────────────────────────────────────
           OUT = "abuseipdb_api_blacklist.txt"
@@ -106,8 +112,8 @@ jobs:
               f.write(f"# Aktualisiert: {now_str}\n")
               f.write(f"# Quellen: 3 API-Keys (Round-Robin)\n")
               f.write(f"# Eintraege: {len(sorted_ips)}\n")
-              for idx, score, count, status in stats:
-                  f.write(f"# Key {idx}: Score≥{score} → {count} IPs [{status}]\n")
+              for idx, count, status in stats:
+                  f.write(f"# Key {idx}: {count} IPs [{status}]\n")
               f.write("\n")
               f.write("\n".join(sorted_ips) + "\n")
 
