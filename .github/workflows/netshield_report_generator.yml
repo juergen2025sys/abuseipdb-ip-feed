@@ -114,11 +114,76 @@ jobs:
           print(f"NETSHIELD_REPORT.md geschrieben | combined: {total:,} IPs")
           EOF
 
+      - name: Update README IP Counts
+        run: |
+          python3 << 'EOF'
+          import os, re
+
+          def count_ips(filepath):
+              if not os.path.exists(filepath): return None
+              count = 0
+              with open(filepath) as f:
+                  for line in f:
+                      if line.strip() and not line.startswith("#"):
+                          count += 1
+              return count
+
+          # Dateien → Anzeigeformat im README
+          # Format: Dateiname → (README-Linktext, Formatierungsfunktion)
+          README_COUNTS = {
+              "combined_threat_blacklist_ipv4.txt":    lambda n: f"**{n:,}**",
+              "active_blacklist_ipv4.txt":             lambda n: f"**{n:,}**",
+              "blacklist_confidence40_ipv4.txt":       lambda n: f"**{n:,}**",
+              "watchlist_confidence20to39_ipv4.txt":   lambda n: f"**{n:,}**",
+              "cve_exploit_ips.txt":                   lambda n: f"**{n:,}**",
+              "vpn_proxy_ranges.txt":                  lambda n: f"**{n:,}**",
+              "tor_exit_nodes.txt":                    lambda n: f"**{n:,}**",
+              "bot_detector_blacklist_ipv4.txt":       lambda n: f"**{n:,}**",
+              "abuseipdb_api_blacklist.txt":           lambda n: f"**{n:,}**",
+          }
+
+          if not os.path.exists("README.md"):
+              print("README.md nicht gefunden – übersprungen")
+              exit(0)
+
+          with open("README.md", "r", encoding="utf-8") as f:
+              readme = f.read()
+
+          changes = 0
+          for filename, fmt in README_COUNTS.items():
+              count = count_ips(filename)
+              if count is None:
+                  print(f"  SKIP: {filename} nicht vorhanden")
+                  continue
+
+              formatted = fmt(count)
+
+              # Regex: Tabellenzeile mit diesem Dateinamen, ersetzt den letzten Spaltenwert
+              # Beispiel: | [combined_...](url) | ... | **2.344.956** |
+              pattern = (
+                  r'(\|\s*\[?' + re.escape(filename) + r'\]?\([^)]*\)\s*\|[^|]*\|)\s*[^|]+(\s*\|)'
+              )
+              new_readme, n = re.subn(pattern, rf'\1 {formatted} \2', readme)
+              if n > 0:
+                  readme = new_readme
+                  changes += 1
+                  print(f"  ✅ {filename}: {formatted}")
+              else:
+                  print(f"  ⚠️  {filename}: kein Match in README-Tabelle")
+
+          if changes > 0:
+              with open("README.md", "w", encoding="utf-8") as f:
+                  f.write(readme)
+              print(f"\n{changes} IP-Zahlen im README aktualisiert")
+          else:
+              print("Keine Änderungen am README")
+          EOF
+
       - name: Commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add NETSHIELD_REPORT.md
+          git add NETSHIELD_REPORT.md README.md
           if git diff --staged --quiet; then
             echo "Keine Änderungen"
           else
