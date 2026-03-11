@@ -1,7 +1,7 @@
 # Workflow Health Checker – Report
-**Aktualisiert:** 2026-03-11 21:05 UTC
+**Aktualisiert:** 2026-03-11 21:09 UTC
 
-**Workflows:** 18 | ✅ 15 OK | ⚠️ 0 Warnung | ❌ 3 Fehler
+**Workflows:** 18 | ✅ 16 OK | ⚠️ 0 Warnung | ❌ 2 Fehler
 
 ---
 ## Übersicht
@@ -22,7 +22,7 @@
 | `tor_exit_monitor.yml` | ✅ OK | 0 | 0 | `30 23 * * *` |
 | `update-blocklist.yml` | ✅ OK | 0 | 0 | `30 2 * * 1`, `30 2 * * 3` |
 | `update_bot_detector.yml` | ✅ OK | 0 | 0 | `45 23 * * *` |
-| `update_combined_blacklist.yml` | ❌ FEHLER | 1 | 0 | `0 */3 * * *` |
+| `update_combined_blacklist.yml` | ✅ OK | 0 | 0 | `0 */3 * * *` |
 | `update_confidence_blacklist.yml` | ✅ OK | 0 | 0 | `15 0 * * *`, `15 3 * * *`, `15 6 * * *`, `15 9 * * *`, `15 12 * * *`, `15 15 * * *`, `15 18 * * *`, `15 21 * * *` |
 | `vpn_proxy_detector.yml` | ✅ OK | 0 | 0 | `30 3 * * 1` |
 | `workflow_health_checker.yml` | ✅ OK | 0 | 0 | `5 1 * * *` |
@@ -38,10 +38,6 @@
 
 - 🔴 [AUDIT-TIMING] Zeitkonflikt erkannt: `30 6 * * 0` – 06:00 UTC Sonntag – Überschneidung mit false_positive_checker + combined. Fix: `30 6 * * 0` (06:30 UTC)
 
-### `update_combined_blacklist.yml`
-
-- 🔴 [AUDIT-BUG-2] seen_db.json wird per json.dump() geschrieben, aber fehlt im `git add`-Befehl. Fällt der GitHub-Cache nach 7 Tagen weg, gehen alle Änderungen (z.B. Community-Reports) dauerhaft verloren. Fix: `git add ... seen_db.json` ergänzen.
-
 
 ---
-*Generiert: 2026-03-11 21:05 UTC | 18 Workflow-Dateien geprüft*
+*Generiert: 2026-03-11 21:09 UTC | 18 Workflow-Dateien geprüft*
