@@ -1,5 +1,5 @@
 # Workflow Health Checker – Report
-**Aktualisiert:** 2026-03-11 16:29 UTC
+**Aktualisiert:** 2026-03-11 16:46 UTC
 
 **Workflows:** 19 | ✅ 19 OK | ⚠️ 0 Warnung | ❌ 0 Fehler
 
@@ -24,9 +24,9 @@
 | `update-blocklist.yml` | ✅ OK | 0 | 0 | `0 3 * * 1`, `0 3 * * 3` |
 | `update_bot_detector.yml` | ✅ OK | 0 | 0 | `45 23 * * *` |
 | `update_combined_blacklist.yml` | ✅ OK | 0 | 0 | `0 */3 * * *` |
-| `update_confidence_blacklist.yml` | ✅ OK | 0 | 0 | `15 0 * * *` |
+| `update_confidence_blacklist.yml` | ✅ OK | 0 | 0 | `15 0 * * *`, `15 3 * * *`, `15 6 * * *`, `15 9 * * *`, `15 12 * * *`, `15 15 * * *`, `15 18 * * *`, `15 21 * * *` |
 | `vpn_proxy_detector.yml` | ✅ OK | 0 | 0 | `30 3 * * 1` |
 | `workflow_health_checker.yml` | ✅ OK | 0 | 0 | `0 1 * * *` |
 
 ---
-*Generiert: 2026-03-11 16:29 UTC | 19 Workflow-Dateien geprüft*
+*Generiert: 2026-03-11 16:46 UTC | 19 Workflow-Dateien geprüft*
