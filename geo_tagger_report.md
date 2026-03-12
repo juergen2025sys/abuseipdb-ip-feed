@@ -1,66 +1,54 @@
 # Geo-Tagger – Blacklist Enrichment Report
-**Aktualisiert:** 2026-03-08 15:56 UTC
+**Aktualisiert:** 2026-03-12 19:46 UTC  
+**Methode:** ScaniteX Länderprefixe (kein API-Key, kein Rate-Limit)  
+**Blacklist-IPs gesamt:** 2,859,128  
+**Davon zugeordnet:** 43,791 (1.5%)  
+**Nicht zugeordnet:** 2,815,337
 
 ---
-## Top 20 Länder (nach Blacklist-IPs)
 
-| Rang | Land | Code | IPs | Anteil |
-|---|---|---|---|---|
-| 1 | 🇺🇸 United States | US | 239 | 23.9% |
-| 2 | 🇳🇱 Netherlands | NL | 120 | 12.0% |
-| 3 | 🇨🇳 China | CN | 75 | 7.5% |
-| 4 | 🇸🇬 Singapore | SG | 58 | 5.8% |
-| 5 | 🇩🇪 Germany | DE | 55 | 5.5% |
-| 6 | 🇮🇳 India | IN | 45 | 4.5% |
-| 7 | 🇬🇧 United Kingdom | GB | 36 | 3.6% |
-| 8 | 🏳️ Australia | AU | 26 | 2.6% |
-| 9 | 🇷🇺 Russia | RU | 23 | 2.3% |
-| 10 | 🇫🇷 France | FR | 22 | 2.2% |
-| 11 | 🏳️ Canada | CA | 19 | 1.9% |
-| 12 | 🇮🇩 Indonesia | ID | 18 | 1.8% |
-| 13 | 🇭🇰 Hong Kong | HK | 17 | 1.7% |
-| 14 | 🏳️ Italy | IT | 15 | 1.5% |
-| 15 | 🏳️ Pakistan | PK | 15 | 1.5% |
-| 16 | 🇰🇷 South Korea | KR | 13 | 1.3% |
-| 17 | 🇧🇷 Brazil | BR | 13 | 1.3% |
-| 18 | 🇺🇦 Ukraine | UA | 10 | 1.0% |
-| 19 | 🇹🇷 Turkey | TR | 10 | 1.0% |
-| 20 | 🏳️ Sweden | SE | 9 | 0.9% |
+## Länder-Übersicht (nach Blacklist-Treffern)
 
----
-## Top 20 ASNs (nach Blacklist-IPs)
-
-| Rang | ASN | Organisation | IPs |
-|---|---|---|---|
-| 1 | `AS14061 DigitalOcean, LLC` | DigitalOcean, LLC | 218 |
-| 2 | `AS206092 F.N.S. HOLDINGS LIMITED` | VPN Consumer Los Angeles, United States | 33 |
-| 3 | `AS16276 OVH SAS` | Neterra Ltd | 23 |
-| 4 | `AS8075 Microsoft Corporation` | Cloud | 22 |
-| 5 | `AS4134 CHINANET-BACKBONE` | Chinanet JS | 19 |
-| 6 | `AS150436 Byteplus Pte. Ltd.` | Shanghai Great Wall Broadband Network Se | 13 |
-| 7 | `AS135377 UCLOUD INFORMATION TECHNOLOGY (HK) LIMITED` | Ucloud Information Technology (hk) Limit | 13 |
-| 8 | `AS45102 Alibaba (US) Technology Co., Ltd.` | Alibaba Cloud LLC | 13 |
-| 9 | `AS4837 CHINA UNICOM China169 Backbone` | China United Network Communications Corp | 12 |
-| 10 | `AS396982 Google LLC` | Google Cloud (europe-west4) | 12 |
-| 11 | `AS20278 Nexeon Technologies, Inc.` | Router Hosting | 11 |
-| 12 | `AS62240 Clouvider` | Phoenix | 10 |
-| 13 | `AS16509 Amazon.com, Inc.` | AWS EC2 (us-east-2) | 10 |
-| 14 | `AS37963 Hangzhou Alibaba Advertising Co.,Ltd.` | Aliyun Computing Co., LTD | 10 |
-| 15 | `AS396190 Leaseweb USA, Inc.` | LeaseWeb USA, Inc. Seattle | 9 |
-| 16 | `AS9541 Cyber Internet Services (Pvt) Ltd.` | Cyber Internet Services (Private) Limite | 9 |
-| 17 | `AS132203 Tencent Building, Kejizhongyi Avenue` | Tencent Cloud Computing | 8 |
-| 18 | `AS14956 RouterHosting LLC` | FranTech Solutions | 8 |
-| 19 | `AS24940 Hetzner Online GmbH` | Hetzner | 8 |
-| 20 | `AS137409 GSL Networks Pty LTD` | VPN Consumer Singapore, Republic of Sing | 7 |
+| Rang | Land | Code | Risiko | BL-Hits | Anteil | Prefixes |
+|---|---|---|---|---|---|---|
+| 1 | 🇳🇬 Nigeria | `NG` | 🟡 Mittel | 13,288 | 0.5% | 20 |
+| 2 | 🇸🇬 Singapur | `SG` | ⚪ Niedrig | 10,953 | 0.4% | 20 |
+| 3 | 🇺🇸 USA | `US` | ⚪ Niedrig | 10,074 | 0.4% | 20 |
+| 4 | 🇻🇳 Vietnam | `VN` | 🟡 Mittel | 4,590 | 0.2% | 20 |
+| 5 | 🇵🇰 Pakistan | `PK` | 🟡 Mittel | 905 | 0.0% | 20 |
+| 6 | 🇧🇾 Belarus | `BY` | 🔴 Hoch | 852 | 0.0% | 20 |
+| 7 | 🇮🇷 Iran | `IR` | 🔴 Hoch | 422 | 0.0% | 20 |
+| 8 | 🇬🇧 Grossbritannien | `GB` | ⚪ Niedrig | 377 | 0.0% | 20 |
+| 9 | 🇺🇦 Ukraine | `UA` | 🟡 Mittel | 376 | 0.0% | 20 |
+| 10 | 🇮🇩 Indonesien | `ID` | 🟡 Mittel | 277 | 0.0% | 20 |
+| 11 | 🇷🇺 Russland | `RU` | 🔴 Hoch | 201 | 0.0% | 20 |
+| 12 | 🇷🇴 Rumänien | `RO` | 🟡 Mittel | 200 | 0.0% | 20 |
+| 13 | 🇭🇰 Hongkong | `HK` | 🟡 Mittel | 181 | 0.0% | 20 |
+| 14 | 🇳🇱 Niederlande | `NL` | ⚪ Niedrig | 177 | 0.0% | 20 |
+| 15 | 🇮🇳 Indien | `IN` | 🟡 Mittel | 175 | 0.0% | 20 |
+| 16 | 🇰🇿 Kasachstan | `KZ` | 🟡 Mittel | 153 | 0.0% | 20 |
+| 17 | 🇧🇩 Bangladesch | `BD` | 🟡 Mittel | 133 | 0.0% | 20 |
+| 18 | 🇹🇷 Türkei | `TR` | 🟡 Mittel | 123 | 0.0% | 20 |
+| 19 | 🇩🇪 Deutschland | `DE` | ⚪ Niedrig | 104 | 0.0% | 20 |
+| 20 | 🇧🇷 Brasilien | `BR` | 🟡 Mittel | 72 | 0.0% | 20 |
+| 21 | 🇯🇵 Japan | `JP` | ⚪ Niedrig | 63 | 0.0% | 20 |
+| 22 | 🇰🇷 Südkorea | `KR` | ⚪ Niedrig | 45 | 0.0% | 20 |
+| 23 | 🇸🇾 Syrien | `SY` | 🔴 Hoch | 32 | 0.0% | 20 |
+| 24 | 🇫🇷 Frankreich | `FR` | ⚪ Niedrig | 12 | 0.0% | 20 |
+| 25 | 🇨🇳 China | `CN` | 🔴 Hoch | 4 | 0.0% | 20 |
+| 26 | 🇰🇵 Nordkorea | `KP` | 🔴 Hoch | 2 | 0.0% | 1 |
 
 ---
-## Proxy & Hosting IPs
 
-| Kategorie | Anzahl |
-|---|---|
-| Als Proxy erkannt | **171** |
-| Als Hosting erkannt | **471** |
-| Gesamt enriched | **1000** |
+## Zusammenfassung nach Risikoklasse
+
+| Risikoklasse | BL-Hits | Anteil |
+|---|---|---|
+| 🔴 Hoch (RU/CN/KP/IR/SY/BY) | 1,513 | 0.1% |
+| 🟡 Mittel | 20,473 | 0.7% |
+| ⚪ Niedrig / Tracking | 21,805 | 0.8% |
+| ❓ Nicht zugeordnet | 2,815,337 | 98.5% |
 
 ---
-*Generiert: 2026-03-08 15:56 UTC*
+*Datenquelle: [ScaniteX IP Ranges](https://scanitex.com/en/resources/ip-ranges) (täglich aktualisiert)*  
+*Generiert: 2026-03-12 19:46 UTC*
