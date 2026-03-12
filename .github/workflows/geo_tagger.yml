@@ -133,7 +133,7 @@ jobs:
 
           for entry in COUNTRIES:
               cc   = entry["cc"]
-              url  = f"{SCANITEX_BASE}/{cc.lower()}"
+              url  = f"{SCANITEX_BASE}/{cc.lower()}/download/cidr"
               print(f"  {entry['flag']} {entry['name']} ({cc})...", end=" ", flush=True)
 
               raw = fetch_raw(url)
