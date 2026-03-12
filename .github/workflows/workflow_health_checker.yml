@@ -151,7 +151,7 @@ jobs:
                       errors.append(f"Zeile {i}: `str(...).get(...)` – str hat kein .get(), führt zu AttributeError. Korrekt: `(dict_expr).get(...)`")
           
               # Nur prüfen wenn der Workflow tatsächlich seen_db.json öffnet/definiert
-              uses_seen_db_file = bool(
+              uses_seen_db_file = name != "workflow_health_checker.yml" and bool(
                   re.search(r'"seen_db\.json"', content) or
                   re.search(r"'seen_db\.json'", content)
               )
@@ -168,7 +168,7 @@ jobs:
           
               # Prüft ob ein Restore-Step den latest-Key UND restore-keys hat
               # Nur melden wenn restore-keys komplett fehlt (nicht nur an anderer Stelle steht)
-              uses_seen_db_cache = "netshield-seen-db" in content and "actions/cache" in content
+              uses_seen_db_cache = name != "workflow_health_checker.yml" and "netshield-seen-db" in content and "actions/cache" in content
               if uses_seen_db_cache:
                   has_old_only = bool(re.search(r"key:\s*netshield-seen-db-v1\s*$", content, re.MULTILINE))
                   has_new_restore = "netshield-seen-db-v1-" in content and "restore-keys" in content
@@ -233,11 +233,11 @@ jobs:
                       in_asn_loop = False  # einmal pro Loop melden
           
               # Erkennt Workflows die json.dump(db) aufrufen aber nicht im git add haben
-              writes_seen_db = bool(
+              writes_seen_db = name != "workflow_health_checker.yml" and bool(
                   re.search(r'open\s*\(\s*"seen_db\.json"', content) or
-                  re.search("open\\s*\\(\\s*'seen_db\\.json'", content) or
+                  re.search(r"open\s*\(\s*'seen_db\.json'", content) or
                   ((re.search(r'DB_FILE\s*=\s*"seen_db\.json"', content) or
-                    re.search("DB_FILE\\s*=\\s*'seen_db\\.json'", content)) and
+                    re.search(r"DB_FILE\s*=\s*'seen_db\.json'", content)) and
                    re.search(r'json\.dump\s*\(\s*db\s*,', content))
               )
               has_seen_db_in_git_add = bool(re.search(r'git\s+add\b.*seen_db\.json', content))
