@@ -55,7 +55,7 @@ jobs:
               return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
           FILES = {
-              "combined_threat_blacklist_ipv4.txt": "Stufe 1 – Alle IPs (365 Tage)",
+              "combined_threat_blacklist_ipv4.txt": "Stufe 1 – Alle IPs (180 Tage)",
               "active_blacklist_ipv4.txt":          "Stufe 2 – Aktiv (30 Tage) → OPNsense",
               "blacklist_confidence40_ipv4.txt":    "Hohe Konfidenz (≥40%)",
               "watchlist_confidence20to39_ipv4.txt":"Watchlist (20-39%)",
@@ -160,14 +160,23 @@ jobs:
 
               # Regex: Tabellenzeile mit diesem Dateinamen, ersetzt den letzten Spaltenwert
               # Beispiel: | [combined_...](url) | ... | **2.344.956** |
-              pattern = (
+              # Zwei Patterns: (1) Link-Zeile [datei](url), (2) Code-Zeile `datei`
+              pattern_link = (
                   r'(\|\s*\[?' + re.escape(filename) + r'\]?\([^)]*\)\s*\|[^|]*\|)\s*[^|]+(\s*\|)'
               )
-              new_readme, n = re.subn(pattern, rf'\1 {formatted} \2', readme)
-              if n > 0:
+              pattern_code = (
+                  r'(\|[^|]*`' + re.escape(filename) + r'`[^|]*\|[^|]*\|)\s*[^|]+(\s*\|)'
+              )
+              new_readme, n1 = re.subn(pattern_link, rf'\1 {formatted} \2', readme)
+              if n1 > 0:
                   readme = new_readme
+              new_readme, n2 = re.subn(pattern_code, rf'\1 {formatted} \2', readme)
+              if n2 > 0:
+                  readme = new_readme
+              n = n1 + n2
+              if n > 0:
                   changes += 1
-                  print(f"  ✅ {filename}: {formatted}")
+                  print(f"  ✅ {filename}: {formatted} ({n} Treffer)")
               else:
                   print(f"  ⚠️  {filename}: kein Match in README-Tabelle")
 

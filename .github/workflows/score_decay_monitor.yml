@@ -170,6 +170,12 @@ jobs:
           path: seen_db.json
           key: netshield-seen-db-v1-decay-${{ github.run_id }}
 
+      - name: Save seen_db Cache (latest alias)
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: seen_db.json
+          key: netshield-seen-db-v1-latest
+
       - name: Commit
         run: |
           git config user.name "github-actions[bot]"

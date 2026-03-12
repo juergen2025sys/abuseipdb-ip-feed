@@ -147,16 +147,26 @@ jobs:
           if ip in db:
               # IP existiert bereits → last_seen aktualisieren + community-Flag
               # days_seen erhöhen wenn echter neuer Tag (nicht mehrmals täglich zählen)
-              prev_last = db[ip].get("last", "2000-01-01")
+              prev_last       = db[ip].get("last", "2000-01-01")
+              community_count = db[ip].get("community", 0) + 1
               db[ip]["last"]        = now_day
-              db[ip]["hq"]          = True   # Community-Bestätigung = HQ
-              db[ip]["community"]   = db[ip].get("community", 0) + 1
-              db[ip]["today_hq"]    = True
+              db[ip]["community"]   = community_count
               db[ip]["today_count"] = db[ip].get("today_count", 0)
               if prev_last != now_day:
                   db[ip]["days_seen"] = db[ip].get("days_seen", 0) + 1
+
+              # hq=True erst ab 3 unabhängigen Community-Meldungen (Missbrauchsschutz)
+              # Eine einzelne Person kann so nicht beliebige IPs als HQ markieren
+              HQ_COMMUNITY_THRESHOLD = 3
+              if community_count >= HQ_COMMUNITY_THRESHOLD and not db[ip].get("hq", False):
+                  db[ip]["hq"]       = True
+                  db[ip]["today_hq"] = True
+                  print(f"IP {ip} auf HQ=True gesetzt (community={community_count} >= {HQ_COMMUNITY_THRESHOLD})")
+              else:
+                  db[ip]["today_hq"] = db[ip].get("hq", False)
+
               action = "UPDATED"
-              print(f"IP {ip} bereits bekannt – auf HQ=True gesetzt, community+1")
+              print(f"IP {ip} bereits bekannt – community={community_count}, hq={db[ip].get('hq', False)}")
           else:
               # Neue IP → neu eintragen mit allen Schema-Feldern
               db[ip] = {
