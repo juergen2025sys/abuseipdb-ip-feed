@@ -256,7 +256,9 @@ jobs:
           
               # Erkennt: Workflow enthält 'decay' im Namen oder 'DECAY_DAYS' im Code
               # und speichert Cache mit key: netshield-seen-db-v1-latest (statt decay-<run_id>)
-              is_decay_workflow = "DECAY_DAYS" in content or "score_decay" in name.lower() or "decay" in name.lower()
+              is_decay_workflow = name != "workflow_health_checker.yml" and (
+                  "DECAY_DAYS" in content or "score_decay" in name.lower() or "decay" in name.lower()
+              )
               if is_decay_workflow:
                   # Score-Decay MUSS beide Save-Steps haben:
                   # 1) netshield-seen-db-v1-decay-<run_id>  (versionierter Snapshot)
