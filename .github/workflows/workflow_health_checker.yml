@@ -227,15 +227,15 @@ jobs:
                       in_asn_loop = False  # einmal pro Loop melden
 
               # ── [AUDIT-BUG-2] seen_db wird modifiziert aber nicht committed ────────
-              # Erkennt Workflows die json.dump(db) aufrufen aber seen_db.json nicht im git add haben
+              # Erkennt Workflows die json.dump(db) aufrufen aber nicht im git add haben
               writes_seen_db = bool(re.search(r'json\.dump\s*\(\s*db\s*,', content))
               has_seen_db_in_git_add = bool(re.search(r'git\s+add\b.*seen_db\.json', content))
               if writes_seen_db and not has_seen_db_in_git_add:
                   errors.append(
-                      "[AUDIT-BUG-2] seen_db.json wird per json.dump() geschrieben, "
+                      "[AUDIT-BUG-2] wird per json.dump() geschrieben, "
                       "aber fehlt im `git add`-Befehl. Fällt der GitHub-Cache nach 7 Tagen weg, "
                       "gehen alle Änderungen (z.B. Community-Reports) dauerhaft verloren. "
-                      "Fix: `git add ... seen_db.json` ergänzen."
+                      "Fix: `git add ...` ergänzen."
                   )
 
               # ── [AUDIT-BUG-3] Score-Decay überschreibt latest-Cache-Alias ───────────
