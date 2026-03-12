@@ -667,6 +667,20 @@ jobs:
             echo "Keine Änderungen"
           else
             git commit -m "Auto Feed Discovery: $(date -u '+%Y-%m-%d %H:%M') UTC"
-            git pull --rebase origin ${GITHUB_REF_NAME}
+            # Rebase vor Push – bei Konflikt in combined_threat_blacklist_ipv4.txt
+            # remote-Version nehmen (update_combined_blacklist hat vollständigere Daten;
+            # nächster Combined-Run generiert die Datei sowieso neu aus seen_db)
+            if ! git pull --rebase origin ${GITHUB_REF_NAME}; then
+              echo "Rebase-Konflikt erkannt – löse automatisch auf..."
+              git checkout --theirs combined_threat_blacklist_ipv4.txt
+              git add combined_threat_blacklist_ipv4.txt
+              # Weitere Konflikte (auto_discovered_feeds.json, report) mit eigener Version lösen
+              git diff --name-only --diff-filter=U | while read f; do
+                echo "  Konflikt in $f – nehme eigene Version (ours)"
+                git checkout --ours "$f"
+                git add "$f"
+              done
+              GIT_EDITOR=true git rebase --continue
+            fi
             git push origin HEAD:${GITHUB_REF_NAME}
           fi
