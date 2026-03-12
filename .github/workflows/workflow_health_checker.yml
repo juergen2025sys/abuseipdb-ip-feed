@@ -33,35 +33,33 @@ jobs:
       - name: Check all Workflows
         run: |
           python3 << 'EOF'
-          python3 << 'EOF'
-          import json
-          import os, re, glob
+          import os, re, glob, json
           from datetime import datetime, timezone
-
+          
           now     = datetime.now(timezone.utc)
           now_str = now.strftime("%Y-%m-%d %H:%M UTC")
-
+          
           WORKFLOW_DIR = ".github/workflows"
           yml_files    = sorted(glob.glob(f"{WORKFLOW_DIR}/*.yml"))
-
+          
           results = []
-
+          
           for path in yml_files:
               name     = os.path.basename(path)
               warnings = []
               errors   = []
-
+          
               with open(path, encoding="utf-8") as f:
                   content = f.read()
                   lines   = content.splitlines()
-
+          
               if "permissions:" not in content:
                   errors.append("Fehlendes `permissions:` – Workflow könnte keine Schreibrechte haben")
               if "contents: write" not in content:
                   errors.append("Fehlendes `contents: write` – Push wird fehlschlagen")
               if "persist-credentials: true" not in content:
                   warnings.append("Kein `persist-credentials: true` – Push-Auth könnte fehlen")
-
+          
               # Nur echte YAML-Schedule-Zeilen (- cron: '...'), keine Python-Strings
               cron_matches = []
               for line in lines:
@@ -72,15 +70,15 @@ jobs:
                   parts = cron_expr.strip().split()
                   if len(parts) != 5:
                       errors.append(f"Ungültiger Cron-Ausdruck: `{cron_expr}` (erwartet 5 Felder)")
-
+          
               if "timeout-minutes:" not in content:
                   warnings.append("Kein `timeout-minutes:` – Job könnte bis zu 6h hängen")
-
+          
               for i, line in enumerate(lines, 1):
                   stripped = line.strip()
                   if stripped == "git push" or stripped == "git push\n":
                       errors.append(f"Zeile {i}: Nacktes `git push` ohne rebase – Konflikt-Risiko bei parallelen Runs")
-
+          
               for i, line in enumerate(lines):
                   if "uses: actions/cache" in line or "uses: actions/checkout" in line:
                       # nächste nicht-leere Zeile prüfen
@@ -91,7 +89,7 @@ jobs:
                           if nl.startswith("run:"):
                               errors.append(f"Zeile {j+1}: `run:` direkt nach `uses:` ohne eigenen `- name:` Step → YAML-Fehler")
                           break
-
+          
               for i, line in enumerate(lines, 1):
                   stripped = line.strip()
                   # Nur echte Shell-Zeilen prüfen (nicht Python-Code mit re.findall etc.)
@@ -101,21 +99,21 @@ jobs:
                           msg = m.group(1)
                           if "UTC" not in msg and "date" not in msg:
                               warnings.append(f"Zeile {i}: Commit-Message ohne UTC-Zeitstempel: `{msg[:60]}`")
-
+          
               if "git commit" in content and "git add" not in content:
                   warnings.append("git commit ohne vorheriges git add gefunden")
-
+          
               for i, line in enumerate(lines, 1):
                   stripped = line.strip()
                   if stripped == "git add" or stripped == "git add ":
                       errors.append(f"Zeile {i}: `git add` ohne Argumente – keine Datei wird gestaged, Commit ist leer")
-
+          
               for i, line in enumerate(lines, 1):
                   stripped = line.strip()
                   if stripped.startswith("python3 -c") and (stripped.endswith('"') is False or stripped.count('"') < 2):
                       if stripped.endswith('"') is False:
                           errors.append("Zeile " + str(i) + ": `python3 -c \"...` mit mehrzeiligem Code – YAML-Syntaxfehler, bitte python3 Heredoc verwenden")
-
+          
               in_heredoc = False
               heredoc_indent = 0
               for i, line in enumerate(lines, 1):
@@ -131,7 +129,7 @@ jobs:
                       if line.strip() and not line.startswith(" " * max(heredoc_indent, 1)):
                           errors.append(f"Zeile {i}: Heredoc-Inhalt ohne Einrückung – YAML-Syntaxfehler (mindestens {heredoc_indent} Leerzeichen erwartet)")
                           in_heredoc = False
-
+          
               def is_code_line(ln):
                   """True wenn Zeile echter Code ist – kein Kommentar, kein append-Meldungstext."""
                   s = ln.strip()
@@ -141,17 +139,17 @@ jobs:
                   if _re.search(r'(errors|warnings)\.append\s*\(', ln):
                       return False
                   return True
-
+          
               for i, line in enumerate(lines, 1):
                   if not is_code_line(line):
                       continue
                   if re.search(r'str\s*\(.*\)\s*\.get\s*\(', line):
                       errors.append(f"Zeile {i}: `str(...).get(...)` – str hat kein .get(), führt zu AttributeError. Korrekt: `(dict_expr).get(...)`")
-
+          
               # Nur prüfen wenn der Workflow tatsächlich seen_db.json öffnet/definiert
               uses_seen_db_file = bool(
                   re.search(r'"seen_db\.json"', content) or
-                  re.search("'seen_db\.json'", content)
+                  re.search(r"'seen_db\.json'", content)
               )
               modifies_seen_db = uses_seen_db_file and any(
                   re.search(r'(del db\[|db\.pop\(|json\.dump\(db)', line)
@@ -163,7 +161,7 @@ jobs:
               # Nur warnen wenn seen_db modifiziert wird aber kein Cache-Save-Step vorhanden
               if modifies_seen_db and "github.run_id" not in content:
                   errors.append("seen_db.json wird modifiziert, aber kein `Save seen_db Cache`-Step mit `github.run_id` gefunden – Änderungen gehen beim nächsten Run verloren")
-
+          
               # Prüft ob ein Restore-Step den latest-Key UND restore-keys hat
               # Nur melden wenn restore-keys komplett fehlt (nicht nur an anderer Stelle steht)
               uses_seen_db_cache = "netshield-seen-db" in content and "actions/cache" in content
@@ -190,7 +188,7 @@ jobs:
                           "bei Cache-Miss (z.B. nach 7 Tagen Inaktivität) wird seen_db nicht gefunden. "
                           "Fix: `restore-keys: |\n  netshield-seen-db-v1-` ergänzen."
                       )
-
+          
               # get("days_seen", 1) + 1 startet fälschlich bei 2 statt 1
               # korrekt: get("days_seen", 0) + 1
               for i, line in enumerate(lines, 1):
@@ -201,7 +199,7 @@ jobs:
                           f"Zeile {i}: `get(\"days_seen\", 1) + 1` – Initialwert falsch: "
                           f"erster Bestätigungstag wird als 2 gezählt. Korrekt: `get(\"days_seen\", 0) + 1`"
                       )
-
+          
               # Neue Einträge müssen alle Pflichtfelder des neuen Schemas enthalten
               REQUIRED_SCHEMA_FIELDS = ["days_seen", "today_count", "today_hq", "hq_feeds", "feeds"]
               writes_new_db_entry = bool(re.search(r'"first"\s*:\s*now_day', content))
@@ -212,8 +210,8 @@ jobs:
                           f"seen_db Eintrag fehlt Pflichtfelder: {missing} – "
                           f"Confidence-Scoring ignoriert diese IPs (Score bleibt 0)"
                       )
-
-
+          
+          
               # Erkennt: for asn ... in asn_ip_count.items(): ... fetch_json(...iptoasn...)
               in_asn_loop = False
               for i, line in enumerate(lines, 1):
@@ -229,7 +227,7 @@ jobs:
                           f"`asn_to_ips.get(asn, [])` verwenden."
                       )
                       in_asn_loop = False  # einmal pro Loop melden
-
+          
               # Erkennt Workflows die json.dump(db) aufrufen aber nicht im git add haben
               writes_seen_db = bool(
                   re.search(r'open\s*\(\s*"seen_db\.json"', content) or
@@ -251,7 +249,7 @@ jobs:
                       "gehen alle Änderungen dauerhaft verloren. "
                       "Fix: `git add seen_db.json` oder `Save seen_db Cache`-Step ergänzen."
                   )
-
+          
               # Erkennt: Workflow enthält 'decay' im Namen oder 'DECAY_DAYS' im Code
               # und speichert Cache mit key: netshield-seen-db-v1-latest (statt decay-<run_id>)
               is_decay_workflow = "DECAY_DAYS" in content or "score_decay" in name.lower() or "decay" in name.lower()
@@ -278,7 +276,7 @@ jobs:
                           "holen nach dem Decay-Lauf den alten, unbereinigten Cache. "
                           "Fix: zweiten Save-Step mit `key: netshield-seen-db-v1-latest` ergänzen."
                       )
-
+          
               # Prüft ob noch die alten konfliktbehafteten Cron-Zeiten vorhanden sind
               KNOWN_CONFLICTS = {
                   "workflow_health_checker.yml": {
@@ -309,11 +307,11 @@ jobs:
                           errors.append(
                               f"[AUDIT-TIMING] Zeitkonflikt erkannt: `{cron_expr}` – {conflict['hint']}"
                           )
-
+          
               for i, line in enumerate(lines, 1):
                   if "cron:" in line and line.count("#") >= 2:
                       warnings.append(f"Zeile {i}: Doppelter Kommentar im Cron-Eintrag – bitte bereinigen")
-
+          
               for i, line in enumerate(lines, 1):
                   if not is_code_line(line):
                       continue
@@ -322,31 +320,31 @@ jobs:
                       warnings.append(f"Zeile {i}: `sorted(ips)` ohne `key=` – lexikografische Sortierung, nicht numerisch (z.B. '10.x' < '2.x'). Korrekt: `sorted(ips, key=lambda ip: tuple(int(o) for o in ip.split('.')))`")
                   if re.search(r'active\w*\.sort\(\)\s*$', stripped) or re.search(r'active_ips\.sort\(\)\s*$', stripped):
                       warnings.append(f"Zeile {i}: `.sort()` ohne `key=` auf IP-Liste – lexikografisch statt numerisch")
-
+          
               for i, line in enumerate(lines, 1):
                   if re.search(r'for\s+\w+\s+in\s+\w+.*if.*fetch', line) or \
                      re.search(r'\[.*fetch.*for\s+\w+\s+in', line):
                       warnings.append(f"Zeile {i}: HTTP-Call in List-Comprehension – kein Rate-Limiting möglich, kann zu API-Sperren führen. Besser: explizite Schleife mit `time.sleep()`")
-
+          
               for i, line in enumerate(lines, 1):
                   if re.search(r'open\s*\([^)]*["\'](?:w|a)["\']', line):
                       if 'encoding' not in line and re.search(r'\.(md|txt|csv)\b', line):
                           warnings.append(f"Zeile {i}: `open()` ohne `encoding=\"utf-8\"` für Textdatei – kann auf manchen Systemen zu Fehlern führen")
-
+          
               if "concurrency:" not in content:
                   warnings.append("Kein `concurrency:`-Block – gleichzeitige schedule+manuell Runs können sich gegenseitig überschreiben")
-
+          
               has_bare_exit = bool(re.search(r'(?<!sys\.)\bexit\s*\(\s*[01]\s*\)', content))
               has_sys_exit  = bool(re.search(r'\bsys\.exit\s*\(', content))
               if has_bare_exit and has_sys_exit:
                   warnings.append("`exit()` und `sys.exit()` gemischt verwendet – einheitlich `sys.exit()` bevorzugen")
-
+          
               for i, line in enumerate(lines, 1):
                   if "Top-500" in line or "top-500" in line:
                       context = "\n".join(lines[max(0, i-5):i+5])
                       if "[:500]" not in context:
                           warnings.append(f"Zeile {i}: Kommentar erwähnt 'Top-500' aber kein `[:500]`-Slice im Code – irreführend, prüfen ob wirklich alle IPs gemeint sind")
-
+          
               status = "❌ FEHLER" if errors else ("⚠️ WARNUNG" if warnings else "✅ OK")
               results.append({
                   "file":     name,
@@ -356,7 +354,7 @@ jobs:
                   "crons":    cron_matches,
               })
               print(f"{status}: {name} ({len(errors)} Fehler, {len(warnings)} Warnungen)")
-
+          
           with open("/tmp/wf_results.json", "w") as f:
               json.dump({"results": results, "now_str": now_str, "yml_count": len(yml_files)}, f)
           EOF
@@ -365,18 +363,17 @@ jobs:
         run: |
           python3 << 'EOF'
           import json
-
+          
           with open("/tmp/wf_results.json") as f:
               data = json.load(f)
           results   = data["results"]
           now_str   = data["now_str"]
-          yml_files = ["x"] * data["yml_count"]  # count only
-
-          # ── Report ────────────────────────────────────────────────────────
+          yml_files = ["x"] * data["yml_count"]
+          
           ok_count   = sum(1 for r in results if r["status"] == "✅ OK")
           warn_count = sum(1 for r in results if r["status"] == "⚠️ WARNUNG")
           err_count  = sum(1 for r in results if r["status"] == "❌ FEHLER")
-
+          
           report_lines = []
           report_lines.append("# Workflow Health Checker – Report")
           report_lines.append(f"**Aktualisiert:** {now_str}\n")
@@ -388,7 +385,7 @@ jobs:
           for r in results:
               cron_str = ", ".join(f"`{c}`" for c in r["crons"]) if r["crons"] else "–"
               report_lines.append(f"| `{r['file']}` | {r['status']} | {len(r['errors'])} | {len(r['warnings'])} | {cron_str} |")
-
+          
           if err_count > 0:
               report_lines.append("\n---\n## ❌ Fehler im Detail\n")
               for r in results:
@@ -397,7 +394,7 @@ jobs:
                       for e in r["errors"]:
                           report_lines.append(f"- 🔴 {e}")
                       report_lines.append("")
-
+          
           if warn_count > 0:
               report_lines.append("\n---\n## ⚠️ Warnungen im Detail\n")
               for r in results:
@@ -406,15 +403,13 @@ jobs:
                       for w in r["warnings"]:
                           report_lines.append(f"- 🟡 {w}")
                       report_lines.append("")
-
+          
           report_lines.append(f"\n---\n*Generiert: {now_str} | {len(yml_files)} Workflow-Dateien geprüft*")
-
+          
           with open("workflow_health_report.md", "w", encoding="utf-8") as f:
-              f.write("
-          ".join(report_lines))
+              f.write("\n".join(report_lines))
           print(f"\nworkflow_health_report.md geschrieben")
           print(f"Gesamt: {ok_count} OK | {warn_count} Warnungen | {err_count} Fehler")
-          EOF
           EOF
 
       - name: Commit
