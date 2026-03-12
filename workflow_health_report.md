@@ -1,5 +1,5 @@
 # Workflow Health Checker – Report
-**Aktualisiert:** 2026-03-12 21:12 UTC
+**Aktualisiert:** 2026-03-12 21:13 UTC
 
 **Workflows:** 17 | ✅ 16 OK | ⚠️ 0 Warnung | ❌ 1 Fehler
 
@@ -31,8 +31,8 @@
 
 ### `workflow_health_checker.yml`
 
-- 🔴 [AUDIT-BUG-3] Score-Decay-Workflow hat keinen versionierten Cache-Save `netshield-seen-db-v1-decay-23024138995` – Fix: Save-Step mit diesem Key ergänzen.
+- 🔴 [AUDIT-BUG-3] Score-Decay-Workflow hat keinen versionierten Cache-Save `netshield-seen-db-v1-decay-23024214538` – Fix: Save-Step mit diesem Key ergänzen.
 
 
 ---
-*Generiert: 2026-03-12 21:12 UTC | 17 Workflow-Dateien geprüft*
+*Generiert: 2026-03-12 21:13 UTC | 17 Workflow-Dateien geprüft*
