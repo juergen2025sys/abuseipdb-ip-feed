@@ -1,0 +1,25 @@
+name: Community IP Report
+description: Report a malicious IP address to NETSHIELD
+labels: ["community-report"]
+body:
+  - type: input
+    id: ip
+    attributes:
+      label: IP Address
+      placeholder: "1.2.3.4"
+    validations:
+      required: true
+  - type: input
+    id: attack_type
+    attributes:
+      label: Attack Type
+      placeholder: "SSH Brute Force / Port Scan / DDoS / ..."
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Additional Details
+      placeholder: "Optional: log snippets, timestamps, frequency..."
+    validations:
+      required: false
