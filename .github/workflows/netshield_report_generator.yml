@@ -140,6 +140,8 @@ jobs:
               "tor_exit_nodes.txt":                    lambda n: f"**{n:,}**",
               "bot_detector_blacklist_ipv4.txt":       lambda n: f"**{n:,}**",
               "abuseipdb_api_blacklist.txt":           lambda n: f"**{n:,}**",
+              "honeypot_ips.txt":                      lambda n: f"**{n:,}**",
+              "asn_blocklist_firewall.txt":             lambda n: f"**{n:,}**",
           }
 
           if not os.path.exists("README.md"):
