@@ -528,26 +528,74 @@ jobs:
               f.write(f"# Abgelaufen entfernt: {len(expired)}\n\n")
               f.write("\n".join(sorted_ips) + "\n")
 
-          # ── Stufe 2: active_blacklist_ipv4.txt (30 Tage echte Bestätigung) ──
-          # "last" ist jetzt nur gesetzt wenn IP wirklich stark bestätigt wurde
-          # (2+ Feeds oder 1 HQ-Feed an diesem Tag). Statische Listen reichen
-          # alleine nicht aus um "last" zu aktualisieren.
+          # ── Stufe 2: active_blacklist_ipv4.txt (30 Tage + Confidence >= 50) ──
+          # Kriterien kombiniert:
+          #   1. last_seen <= 30 Tage  (nur HQ-Feeds setzen last → echte Aktualität)
+          #   2. Confidence-Score >= 50 (gleiche Formel wie update_confidence_blacklist)
+          # Ziel: kleine, qualitativ hochwertige OPNsense-Liste ohne statischen Ballast.
           cutoff_30 = now - timedelta(days=30)
           active_ips = []
+          active_skipped_score = 0
+
           for ip, data in db.items():
               try:
-                  last_dt = datetime.strptime(data["last"], "%Y-%m-%d").replace(tzinfo=timezone.utc)
-                  if last_dt >= cutoff_30:
-                      active_ips.append(ip)
+                  last_dt  = datetime.strptime(data["last"],  "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                  first_dt = datetime.strptime(data.get("first", data["last"]), "%Y-%m-%d").replace(tzinfo=timezone.utc)
               except Exception:
-                  pass
+                  continue
+
+              if last_dt < cutoff_30:
+                  continue
+
+              is_hq       = data.get("hq", False)
+              feed_count  = len(data.get("feeds", []))
+              today_count = data.get("today_count", 0)
+              days_seen   = data.get("days_seen", 1)
+              days_since_last = (now - last_dt).days
+              days_known      = (now - first_dt).days + 1
+
+              if is_hq:                  score_a = 40
+              elif today_count >= 5:     score_a = 35
+              elif today_count >= 3:     score_a = 28
+              elif today_count >= 2:     score_a = 20
+              elif feed_count >= 5:      score_a = 15
+              elif feed_count >= 3:      score_a = 10
+              elif feed_count >= 2:      score_a = 5
+              else:                      score_a = 0
+
+              if days_since_last <= 1:   score_b = 30
+              elif days_since_last <= 3: score_b = 25
+              elif days_since_last <= 7: score_b = 20
+              elif days_since_last <= 14:score_b = 12
+              elif days_since_last <= 30:score_b = 6
+              else:                      score_b = 0
+
+              if days_seen >= 14:        score_c = 20
+              elif days_seen >= 7:       score_c = 15
+              elif days_seen >= 3:       score_c = 10
+              elif days_seen >= 2:       score_c = 6
+              else:                      score_c = 2
+
+              if days_known >= 90:       score_d = 10
+              elif days_known >= 30:     score_d = 6
+              elif days_known >= 14:     score_d = 3
+              else:                      score_d = 0
+
+              conf = min(score_a + score_b + score_c + score_d, 100)
+
+              if conf >= 50:
+                  active_ips.append(ip)
+              else:
+                  active_skipped_score += 1
+
           active_ips.sort(key=lambda ip: tuple(int(o) for o in ip.split('.')))
 
           with open("active_blacklist_ipv4.txt", "w", encoding="utf-8") as f:
               f.write("# NETSHIELD Active Blacklist (IPv4) – Stufe 2\n")
               f.write(f"# Aktualisiert: {now_stamp}\n")
-              f.write(f"# Kriterien: last_seen <= 30 Tage + 2+ Feeds oder HQ=True\n")
-              f.write(f"# Eintraege: {len(active_ips)}\n\n")
+              f.write(f"# Kriterien: last_seen <= 30 Tage UND Confidence-Score >= 50/100\n")
+              f.write(f"# Eintraege: {len(active_ips)}\n")
+              f.write(f"# Herausgefiltert (Score < 50): {active_skipped_score}\n\n")
               f.write("\n".join(active_ips) + "\n")
 
           # ── Report ─────────────────────────────────────────────────────────
@@ -556,14 +604,14 @@ jobs:
               f.write(f"- Aktualisiert: **{now_stamp}**\n")
               f.write(f"- Feeds gesamt: **{len(SOURCES)}**\n")
               f.write(f"- Stufe 1 (combined): **{len(sorted_ips)}** IPs\n")
-              f.write(f"- Stufe 2 (active, 30 Tage): **{len(active_ips)}** IPs\n")
+              f.write(f"- Stufe 2 (active, 30T + Conf≥50): **{len(active_ips)}** IPs (herausgefiltert: {active_skipped_score})\n")
               f.write(f"- Abgelaufen & entfernt: **{len(expired)}**\n\n")
               f.write("## Feed-Statistik\n\n| Feed | IPs |\n|---|---:|\n")
               for name, count in feed_stats:
                   hq_mark = " ⭐" if name in HIGH_QUALITY else ""
                   f.write(f"| `{name}`{hq_mark} | {count} |\n")
 
-          print(f"\nFertig! combined: {len(sorted_ips)} IPs | active: {len(active_ips)} IPs | Feeds: {len(SOURCES)}")
+          print(f"\nFertig! combined: {len(sorted_ips)} IPs | active: {len(active_ips)} IPs (Score<50: {active_skipped_score}) | Feeds: {len(SOURCES)}")
           EOF
 
       - name: Save seen_db Cache
