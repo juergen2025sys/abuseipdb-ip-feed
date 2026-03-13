@@ -2,7 +2,7 @@ name: Geo-Tagger
 
 on:
   schedule:
-    - cron: '30 6 * * 0'  # Sonntag 06:30 UTC
+    - cron: '45 6 * * 0'  # Sonntag 06:45 UTC (nach Confidence um 06:30)
   workflow_dispatch:
 
 env:

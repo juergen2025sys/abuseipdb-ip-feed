@@ -2,7 +2,7 @@ name: NETSHIELD Report Generator
 
 on:
   schedule:
-    - cron: '0,30 * * * *'    # alle 30 Minuten
+    - cron: '15,45 * * * *'   # alle 30 Minuten, versetzt (Mitte zwischen Combined :00 und Confidence :30)
   workflow_dispatch:
 
 env:

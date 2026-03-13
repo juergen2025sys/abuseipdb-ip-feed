@@ -2,7 +2,7 @@ name: Tor Exit Node Monitor
 
 on:
   schedule:
-    - cron: '30 23 * * *'   # täglich 23:30 UTC (30 Min vor Combined um 00:00)
+    - cron: '15 23 * * *'   # täglich 23:15 UTC (45 Min vor Combined um 00:00)
   workflow_dispatch:
 
 env:
