@@ -99,7 +99,7 @@ NETSHIELD aggregiert, bewertet und bereinigt täglich IP-Bedrohungsdaten aus üb
 | [`tor_exit_nodes.txt`](tor_exit_nodes.txt) | Tor Exit Nodes | **7,847** | täglich 23:30 | Anonymisierung blockieren |
 | [`cve_exploit_ips.txt`](cve_exploit_ips.txt) | CVE-Exploit & C2-Server | **227,111** | täglich 04:00 | IDS/IPS |
 | [`vpn_proxy_ranges.txt`](vpn_proxy_ranges.txt) | VPN/Proxy/Datacenter | **57,781** | wöchentlich Mo | Proxy-Erkennung |
-| [`honeypot_ips.txt`](honeypot_ips.txt) | Honeypot-bestätigte IPs | **13,583** | täglich 23:00 | Ergänzung |
+| [`honeypot_ips.txt`](honeypot_ips.txt) | Honeypot-bestätigte IPs | **14,159** | täglich 23:00 | Ergänzung |
 | [`bot_detector_blacklist_ipv4.txt`](bot_detector_blacklist_ipv4.txt) | Bot-Detector | **17,954** | täglich 23:45 | Web-Schutz |
 | [`asn_blocklist_firewall.txt`](asn_blocklist_firewall.txt) | Hochrisiko-ASNs (Score≥50) | **19** | täglich 02:00 | ASN-Blocking |
 
