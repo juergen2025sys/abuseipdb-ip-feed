@@ -166,26 +166,29 @@ jobs:
                   f.writelines(cleaned_lines)
               print(f"Blacklist bereinigt: {removed_count} False Positives entfernt")
 
-              # ── seen_db ebenfalls bereinigen ──────────────────────────────
-              # Ohne diesen Schritt trägt combined beim nächsten Lauf die
-              # Whitelist-IPs sofort wieder ein → Bereinigung wäre wirkungslos
+              # ── seen_db markieren statt löschen ───────────────────────────
+              # HQ-/Mehrfach-Feed-IPs würden sonst im nächsten Combined-Lauf sofort
+              # wieder erscheinen. Daher bleiben sie in seen_db erhalten, werden aber
+              # als FP-whitelisted markiert und von Combined/Confidence unterdrückt.
               DB_FILE = "seen_db.json"
               if os.path.exists(DB_FILE):
                   import json
                   try:
                       with open(DB_FILE) as f:
                           db = json.load(f)
-                      db_removed = 0
+                      db_marked = 0
                       for ip in fp_set:
                           if ip in db:
-                              del db[ip]
-                              db_removed += 1
-                      if db_removed > 0:
+                              db[ip]["fp_whitelist"] = True
+                              db[ip]["fp_reason"] = "whitelist_cidr"
+                              db[ip]["fp_marked"] = now.strftime("%Y-%m-%d")
+                              db_marked += 1
+                      if db_marked > 0:
                           with open(DB_FILE, "w") as f:
                               json.dump(db, f, separators=(",", ":"))
-                          print(f"seen_db bereinigt: {db_removed} False Positives entfernt")
+                          print(f"seen_db markiert: {db_marked} False Positives unterdrückt")
                   except Exception as e:
-                      print(f"seen_db konnte nicht bereinigt werden: {e}")
+                      print(f"seen_db konnte nicht markiert werden: {e}")
           else:
               print("Keine False Positives gefunden")
 

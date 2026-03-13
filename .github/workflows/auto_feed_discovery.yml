@@ -446,10 +446,18 @@ jobs:
               print(f"  ⭐ Reputation: {stars} Stars / {forks} Forks → Score {rep_score}")
 
               # Feed ANGENOMMEN
-              feed_name = re.sub(r'[^a-z0-9_]', '_',
-                                 full_name.lower().replace('/', '_'))[:60]
-              if feed_name in approved_feeds:
-                  feed_name = feed_name + "_v2"
+              def make_unique_feed_name(repo_full_name, existing_map):
+                  base_name = re.sub(r'[^a-z0-9_]', '_',
+                                     repo_full_name.lower().replace('/', '_')).strip('_')[:60]
+                  candidate = base_name
+                  suffix = 2
+                  while candidate in existing_map and existing_map[candidate].get("repo") != repo_full_name:
+                      suffix_str = f"_v{suffix}"
+                      candidate = f"{base_name[:max(1, 60 - len(suffix_str))]}{suffix_str}"
+                      suffix += 1
+                  return candidate
+
+              feed_name = make_unique_feed_name(full_name, approved_feeds)
 
               is_new_feed = feed_name not in existing_feeds
 
@@ -535,17 +543,30 @@ jobs:
           # Der combined-Workflow wendet seinen eigenen Filter korrekt an wenn er
           # danach seen_db verarbeitet. Hier wird seen_db nur als Staging-Area befüllt.
 
-          # 180-Tage-Ablauf (konsistent mit EXPIRY_DAYS in update_combined_blacklist)
+          # Ablauf analog zum Combined-Workflow:
+          # - HQ/strong-confirmed Einträge altern nach dem last-Datum (180 Tage)
+          # - reine Staging-/Watchlist-Einträge mit last=2000-01-01 altern nach first (30 Tage)
           cutoff    = now - timedelta(days=180)
+          cutoff_wl = now - timedelta(days=30)
           expired   = []
           for ip in list(db.keys()):
               try:
-                  last_dt = datetime.strptime(db[ip]["last"], "%Y-%m-%d").replace(tzinfo=timezone.utc)
-                  if last_dt < cutoff:
+                  entry = db[ip]
+                  last_str = entry.get("last", "2000-01-01")
+                  first_str = entry.get("first", last_str)
+                  is_hq = entry.get("hq", False)
+                  last_dt = datetime.strptime(last_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                  first_dt = datetime.strptime(first_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                  if last_str == "2000-01-01" and not is_hq:
+                      if first_dt < cutoff_wl:
+                          expired.append(ip)
+                          del db[ip]
+                  elif last_dt < cutoff:
                       expired.append(ip)
                       del db[ip]
               except Exception:
-                  pass
+                  expired.append(ip)
+                  del db[ip]
 
           print(f"\nseen_db: +{ingested_seen} bestätigt | +{ingested_new} neu eingetragen | "
                 f"{len(expired)} abgelaufen | Gesamt: {len(db)} IPs")
@@ -557,7 +578,7 @@ jobs:
           # ── Schritt 8: combined_threat_blacklist_ipv4.txt neu schreiben ───
           # Alle IPs aus seen_db (unveränderte Logik wie im Combined-Workflow)
           BLACKLIST = "combined_threat_blacklist_ipv4.txt"
-          sorted_ips = sorted(db.keys())
+          sorted_ips = sorted(db.keys(), key=lambda ip: tuple(int(o) for o in ip.split('.')))
 
           with open(BLACKLIST, "w", encoding="utf-8") as f:
               f.write("# NETSHIELD Combined Threat Blacklist (IPv4) – Stufe 1\n")
