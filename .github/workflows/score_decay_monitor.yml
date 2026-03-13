@@ -51,7 +51,7 @@ jobs:
           now_str = now.strftime("%Y-%m-%d %H:%M UTC")
 
           DB_FILE   = "seen_db.json"
-          BLACKLIST = "combined_threat_blacklist_ipv4.txt"
+
 
           if not os.path.exists(DB_FILE):
               print("FEHLER: seen_db.json nicht gefunden")
@@ -65,7 +65,8 @@ jobs:
 
           WARN_DAYS     = 30
           CRITICAL_DAYS = 45
-          DECAY_DAYS    = 30    # nach 30 Tagen aus Blacklist entfernen
+          # DECAY_DAYS entfernt – Löschen aus combined/seen_db ist ausschließlich
+          # Aufgabe von combined (EXPIRY_DAYS=180). Score Decay ist reiner Monitor/Reporter.
 
           stale_warn     = []
           stale_critical = []
@@ -94,8 +95,8 @@ jobs:
 
               if days_ago <= 7:
                   still_active.append((ip, score, days_ago))
-              if days_ago >= DECAY_DAYS:
-                  decay_suggest.append((ip, score, days_ago, last_seen))
+              if days_ago >= 150:
+                  decay_suggest.append((ip, score, days_ago, last_seen))  # bald von combined entfernt (180T)
               elif days_ago >= CRITICAL_DAYS and score >= 10:
                   stale_critical.append((ip, score, days_ago, last_seen))
               elif days_ago >= WARN_DAYS and score >= 5:
@@ -125,27 +126,6 @@ jobs:
               for ip, score, days, last in decay_suggest[:500]:
                   f.write(f"{ip}  score={score}  last={last}  ({days}d ago)\n")
 
-          # IPs aus Blacklist löschen (30+ Tage inaktiv)
-          removed_from_bl = 0
-          if os.path.exists(BLACKLIST) and decay_suggest:
-              remove_set = {ip for ip, *_ in decay_suggest}
-              with open(BLACKLIST) as f:
-                  bl_lines = f.readlines()
-              cleaned = []
-              for line in bl_lines:
-                  ip = line.strip()
-                  if ip and not ip.startswith("#") and ip in remove_set:
-                      removed_from_bl += 1
-                      db.pop(ip, None)
-                  else:
-                      cleaned.append(line)
-              if removed_from_bl > 0:
-                  with open(BLACKLIST, "w") as f:
-                      f.writelines(cleaned)
-                  with open(DB_FILE, "w") as f:
-                      json.dump(db, f, separators=(",", ":"))
-                  print(f"{removed_from_bl} IPs aus Blacklist + seen_db entfernt")
-
           # Report
           lines = ["# Score Decay Monitor – Report", f"**Aktualisiert:** {now_str}\n", "---",
                    "## Übersicht\n",
@@ -154,9 +134,11 @@ jobs:
                    f"| 🟡 Veraltend – Warnung | **{len(stale_warn)}** | 30-44 Tage ohne Aktivität |",
                    f"| 🔴 Veraltend – Kritisch | **{len(stale_critical)}** | 45+ Tage ohne Aktivität |",
                    f"| 💀 Zombie | **{len(zombie_high)}** | Score≥20, 30+ Tage inaktiv |",
-                   f"| 🗑️ Entfernung empfohlen | **{len(decay_suggest)}** | 30+ Tage inaktiv |",
+                   f"| ⏳ Läuft bald ab (150+ Tage) | **{len(decay_suggest)}** | combined entfernt bei 180 Tagen |",
                    "", "---",
-                   f"## 🗑️ Automatisch gelöscht\n**{removed_from_bl} IPs** aus Blacklist entfernt (30+ Tage inaktiv)\n",
+                   "## ℹ️ Hinweis\nIPs werden **nicht** durch diesen Workflow gelöscht.\n"
+                   "Das Entfernen aus combined + seen_db erfolgt ausschließlich durch\n"
+                   "`update_combined_blacklist` nach **180 Tagen** ohne Feed-Bestätigung.\n",
                    f"---\n*Generiert: {now_str} | DB: {len(db)} IPs*"]
 
           with open("score_decay_report.md", "w", encoding="utf-8") as f:
@@ -180,8 +162,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add score_decay_log.txt score_decay_report.md combined_threat_blacklist_ipv4.txt
-          # seen_db.json bleibt AUSSCHLIESSLICH im GitHub Actions Cache (345 MB > 100 MB Limit)
+          git add score_decay_log.txt score_decay_report.md
           if git diff --staged --quiet; then
             echo "Keine Änderungen"
           else
