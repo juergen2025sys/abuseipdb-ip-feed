@@ -509,13 +509,10 @@ jobs:
                   if SOURCE_LABEL not in existing_f:
                       db[ip]["feeds"] = sorted(existing_f | {SOURCE_LABEL})
                   db[ip]["today_count"] = 1  # FIX Bug3: immer 1 setzen, nicht akkumulieren (combined überschreibt danach korrekt)
-                  # Nur "last" aktualisieren wenn IP bereits stark bestätigt war
-                  # (d.h. len(feeds) >= 2 schon vor diesem Run)
-                  if len(db[ip].get("feeds", [])) >= 2:
-                      prev_last = db[ip].get("last", "2000-01-01")
-                      if prev_last != now_day:
-                          db[ip]["days_seen"] = db[ip].get("days_seen", 0) + 1
-                      db[ip]["last"] = now_day
+                  # "last" NICHT setzen – auto_feed_discovery ist kein HQ-Feed.
+                  # Nur HQ-Feeds (Feodo, Talos etc.) via update_combined_blacklist
+                  # dürfen "last" aktualisieren. Sonst hält ein nicht-HQ Feed
+                  # IPs künstlich am Leben (180-Tage-Ablauf wird verschleppt).
                   ingested_seen += 1
               else:
                   # Neue IP – nur eintragen wenn sie in all_new_ips (neuer Feed)
