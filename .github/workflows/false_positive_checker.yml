@@ -55,63 +55,57 @@ jobs:
           print("Starte False Positive Prüfung (Whitelist-CIDR)...")
 
           # ── Bekannte legitime IP-Ranges (Whitelist) ───────────────────────
+          # Nur einzelne IPs die als False Positive aufgetaucht sind.
+          # Keine ganzen CIDR-Ranges – User verwalten eigene Ausnahmen in der Firewall.
           WHITELIST_CIDRS = [
-              # Google (Search, Gmail, Drive, Meet, YouTube)
-              "8.8.8.0/24", "8.8.4.0/24", "8.34.208.0/20", "8.35.192.0/20",
-              "34.0.0.0/9", "35.184.0.0/13",
-              "142.250.0.0/15", "142.251.0.0/16",   # Google Services (142.251.x.x)
-              "172.217.0.0/16", "172.253.0.0/16",   # Google Services (172.217.x.x)
-              "216.58.192.0/19",
-              "74.125.0.0/16", "66.102.0.0/20",
-              # Cloudflare
-              "1.1.1.0/24", "1.0.0.0/24", "104.16.0.0/13", "104.24.0.0/14",
-              "172.64.0.0/13", "162.158.0.0/15", "198.41.128.0/17",
-              "104.18.0.0/15",                       # Cloudflare (104.18.x.x)
-              "172.64.155.0/24",                     # Cloudflare (172.64.155.x)
-              # Microsoft (nur Core-Dienste, kein Azure Cloud)
-              # Azure-Ranges bewusst NICHT whitelisted – werden häufig für
-              # Angriffe missbraucht (gemietete VMs, C2-Server etc.)
-              # Amazon AWS (öffentliche Dienste)
-              "54.239.28.0/23", "54.239.192.0/19",
-              # Akamai CDN
-              "23.0.0.0/12", "23.32.0.0/11",
-              # Fastly CDN
-              "151.101.0.0/16",
-              # Facebook / Meta (WhatsApp, Instagram)
-              "157.240.0.0/16",                      # Facebook/Meta (157.240.x.x)
-              "179.60.192.0/22", "185.60.216.0/22",
-              "31.13.24.0/21", "31.13.64.0/18",
-              "69.63.176.0/20", "69.171.224.0/19",
-              # GitHub
-              "140.82.112.0/20",                     # GitHub (140.82.121.x)
-              "185.199.108.0/22",                    # GitHub Pages/CDN (185.199.x.x)
-              "192.30.252.0/22",
-              # Apple
-              "17.0.0.0/8",
-              # Weitere CDNs / legitime Dienste
-              "80.146.0.0/16",                       # Telekom Deutschland
-              "91.228.164.0/22",                     # legitimer Hoster (91.228.166/167.x)
-              "184.105.0.0/16",                      # Hurricane Electric
-              "141.8.192.0/21",                      # Google Cloud
-              "192.64.80.0/20",                      # Tucows / OpenSRS
               # Shopify CDN
-              "185.111.111.0/24",                    # Shopify CDN (185.111.111.x)
-              "23.227.36.0/22",                      # Shopify CDN (23.227.38.x)
-              "160.79.104.0/21",                     # Shopify (160.79.104.x)
+              "185.111.111.154", "185.111.111.155", "185.111.111.156",
+              "185.111.111.157", "185.111.111.158", "185.111.111.159",
+              # Tucows / OpenSRS
+              "192.64.87.219",
+              # Google Cloud
+              "141.8.194.242",
+              # GitHub Pages / CDN
+              "185.199.109.133", "185.199.111.133",
+              # Shopify CDN
+              "23.227.38.65",
+              # Microsoft (OneDrive/Teams)
+              "52.109.89.119",
+              # Telekom Deutschland
+              "80.146.236.47",
+              # Google Services
+              "172.217.16.196", "172.217.16.206", "172.217.20.132", "172.217.16.195",
+              "142.251.127.190", "142.251.208.164",
+              # Hurricane Electric
+              "184.105.99.75",
+              # Shopify
+              "160.79.104.10",
+              # Facebook / Meta
+              "157.240.253.35",
+              # Legitimer Hoster
+              "91.228.167.128", "91.228.166.47",
+              # Cloudflare
+              "104.18.32.47", "172.64.155.209",
+              # GitHub
+              "140.82.112.0/20",
+              # Quad9 DNS (alle IPv4-Adressen, alle Dienstvarianten)
+              "9.9.9.9", "149.112.112.112",    # Secure (mit Malware-Blocking)
+              "9.9.9.10", "149.112.112.10",    # Unsecured (ohne Blocking)
+              "9.9.9.11", "149.112.112.11",    # Secure + ECS
           ]
 
           whitelist_networks = []
           for cidr in WHITELIST_CIDRS:
               try:
                   whitelist_networks.append(ipaddress.ip_network(cidr, strict=False))
-              except Exception:
+              except:
                   pass
 
           def is_whitelisted(ip):
               try:
                   addr = ipaddress.ip_address(ip)
                   return any(addr in net for net in whitelist_networks)
-              except Exception:
+              except:
                   return False
 
           # ── Blacklist laden ───────────────────────────────────────────────
