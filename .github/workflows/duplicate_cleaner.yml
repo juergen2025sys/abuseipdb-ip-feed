@@ -108,15 +108,17 @@ jobs:
           # ── Entscheidung: Was wird bereinigt? ─────────────────────────────
           # Strategie:
           #   - combined bleibt unverändert (ist die Wahrheitsquelle)
-          #   - Sub-Listen: IPs die AUCH in combined stehen, werden entfernt
-          #     → spart Speicher und verhindert doppeltes Zählen
-          #   - Sub-Listen untereinander: keine Änderung (erlaubt, da combined
-          #     sowieso dedupliziert)
-          # Ausnahme: tor, cve, honeypot, honeydb sind HQ-Feeds → IPs dort behalten damit
-          #   combined sie beim nächsten Lauf korrekt als HQ markiert.
-          #   Nur vpn + botdet werden aus combined-Duplikaten bereinigt.
+          #   - Alle Sub-Listen: IPs die AUCH in combined stehen, werden entfernt
+          #     → spart Speicher, verhindert doppeltes Zählen
+          #
+          # Hinweis zur früheren HQ-Ausnahme (tor/cve/honeypot/honeydb):
+          #   Die HQ-Markierung wird in update_combined_blacklist beim *Einlesen* der
+          #   URLs direkt gesetzt (SOURCES + LOCAL_FEEDS mit is_hq_local=True) –
+          #   nicht anhand des lokalen Dateiinhalts. Eine aus der Sub-Liste entfernte
+          #   IP wird beim nächsten Combined-Lauf über den direkten Feed-Fetch erneut
+          #   als HQ markiert. Die Ausnahme war daher unnötig.
 
-          CLEAN_FROM_COMBINED = ["vpn", "botdet"]  # tor/cve/honeypot/honeydb bleiben (HQ-Markierung wichtig)
+          CLEAN_FROM_COMBINED = ["tor", "cve", "honeypot", "honeydb", "vpn", "botdet"]
 
           total_removed = 0
           removal_stats = {}
@@ -173,11 +175,8 @@ jobs:
               overlap = len(overlaps_with_combined[key])
               total   = max(data[key]["count"], 1)
               pct     = f"{overlap/total*100:.1f}%"
-              if key in CLEAN_FROM_COMBINED:
-                  removed = removal_stats.get(key, 0)
-                  action = f"🗑️ {removed} entfernt" if removed else "✅ bereits sauber"
-              else:
-                  action = "🔒 behalten (HQ-Feed)"
+              removed = removal_stats.get(key, 0)
+              action = f"🗑️ {removed} entfernt" if removed else "✅ bereits sauber"
               lines.append(f"| `{FILES[key]}` | {overlap:,} | {pct} | {action} |")
 
           if cross_overlaps:
@@ -195,8 +194,7 @@ jobs:
           lines.append("## Zusammenfassung\n")
           lines.append(f"| Metrik | Wert |")
           lines.append(f"|---|---|")
-          lines.append(f"| Duplikate entfernt (vpn + botdet) | **{total_removed:,}** |")
-          lines.append(f"| HQ-Feeds behalten (tor/cve/honeypot/honeydb) | **{sum(len(overlaps_with_combined[k]) for k in ['tor','cve','honeypot','honeydb']):,}** |")
+          lines.append(f"| Duplikate entfernt (alle Sub-Listen) | **{total_removed:,}** |")
           lines.append(f"| Combined Blacklist (unverändert) | **{len(combined_ips):,}** |")
 
           lines.append(f"\n---\n*Generiert: {now_str}*")

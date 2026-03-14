@@ -54,8 +54,13 @@ jobs:
 
           def is_private(entry):
               try:
-                  ip = ipaddress.ip_address(entry.split("/")[0])
-                  return ip.is_private or ip.is_loopback
+                  # CIDRs korrekt als Netzwerk prüfen, einzelne IPs als ip_address
+                  if "/" in entry:
+                      net = ipaddress.ip_network(entry, strict=False)
+                      return net.is_private or net.is_loopback
+                  else:
+                      ip = ipaddress.ip_address(entry)
+                      return ip.is_private or ip.is_loopback
               except Exception:
                   return True
 

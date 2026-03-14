@@ -125,6 +125,11 @@ jobs:
           print(f"Gültige IPs für CIDR-Check: {len(bl_addrs):,}")
 
           # ── Pro Land: Prefixliste laden + Blacklist-IPs matchen ───────────
+          # Hinweis: First-Match-Wins – eine IP wird dem ersten Land zugeordnet
+          # dessen Prefix-Range sie enthält (Reihenfolge in COUNTRIES ist definierend).
+          # Reihenfolge: High-Risk zuerst, dann Medium-Risk, dann Low-Risk.
+          # IPs in Transit-ASNs (z.B. Cogent, Level3) können so einem
+          # geopolitisch höher eingestuften Land zugeordnet werden – gewollt.
           print(f"\nLade Länderprefixe von ScaniteX und matche gegen Blacklist...")
           print(f"({len(COUNTRIES)} Länder)\n")
 
