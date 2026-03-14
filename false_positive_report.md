@@ -1,39 +1,34 @@
 # False Positive Checker – Report
-**Aktualisiert:** 2026-03-14 13:50 UTC
+**Aktualisiert:** 2026-03-14 16:48 UTC
 
 ---
 ## Ergebnis
 
 | Metrik | Wert |
 |---|---|
-| Geprüfte IPs (gesamt) | 3259605 |
-| Whitelist-Treffer | **17524** |
-| Gesamt entfernt | **17524** |
+| Geprüfte IPs (gesamt) | 3299390 |
+| Whitelist-Treffer | **15** |
+| Gesamt entfernt | **15** |
 
 ## Whitelist-Treffer
 
 | IP | Grund |
 |---|---|
-| `1.0.0.229` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.208.46` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.33` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.34` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.35` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.37` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.38` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.39` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.40` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.41` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.42` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.43` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.44` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.45` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.46` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.47` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.48` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.49` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.50` | Bekannte legitime IP-Range (CDN/Cloud) |
-| `8.34.210.51` | Bekannte legitime IP-Range (CDN/Cloud) |
+| `23.227.38.65` | Bekannte legitime IP-Range (CDN/Cloud) |
+| `91.228.167.128` | Bekannte legitime IP-Range (CDN/Cloud) |
+| `140.82.112.4` | Bekannte legitime IP-Range (CDN/Cloud) |
+| `140.82.113.3` | Bekannte legitime IP-Range (CDN/Cloud) |
+| `140.82.114.4` | Bekannte legitime IP-Range (CDN/Cloud) |
+| `140.82.121.3` | Bekannte legitime IP-Range (CDN/Cloud) |
+| `140.82.121.4` | Bekannte legitime IP-Range (CDN/Cloud) |
+| `172.217.16.195` | Bekannte legitime IP-Range (CDN/Cloud) |
+| `172.217.16.196` | Bekannte legitime IP-Range (CDN/Cloud) |
+| `184.105.99.75` | Bekannte legitime IP-Range (CDN/Cloud) |
+| `185.111.111.154` | Bekannte legitime IP-Range (CDN/Cloud) |
+| `185.111.111.158` | Bekannte legitime IP-Range (CDN/Cloud) |
+| `185.199.109.133` | Bekannte legitime IP-Range (CDN/Cloud) |
+| `185.199.111.133` | Bekannte legitime IP-Range (CDN/Cloud) |
+| `192.64.87.219` | Bekannte legitime IP-Range (CDN/Cloud) |
 
 ---
-*Generiert: 2026-03-14 13:50 UTC*
+*Generiert: 2026-03-14 16:48 UTC*
