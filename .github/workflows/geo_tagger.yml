@@ -35,6 +35,7 @@ jobs:
           import urllib.request
           import re
           import os
+          import sys
           import json
           import time
           import ipaddress
@@ -95,7 +96,7 @@ jobs:
           BLACKLIST = "combined_threat_blacklist_ipv4.txt"
           if not os.path.exists(BLACKLIST):
               print("FEHLER: Blacklist nicht gefunden!")
-              exit(1)
+              sys.exit(1)
 
           with open(BLACKLIST) as f:
               blacklist_ips = [l.strip() for l in f if l.strip() and not l.startswith("#")]

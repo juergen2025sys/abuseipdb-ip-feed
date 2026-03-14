@@ -127,9 +127,6 @@ jobs:
                       if is_valid_public_ipv4(ip): entries.add(ip)
               return entries
 
-          def is_private(ip):
-              return not is_valid_public_ipv4(ip)
-
 
           VPN_SOURCES = {
               # ── Bekannte VPN-Provider ────────────────────────────────────

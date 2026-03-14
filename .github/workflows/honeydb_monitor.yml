@@ -41,6 +41,7 @@ jobs:
           import urllib.error
           import json
           import os
+          import sys
           from datetime import datetime, timezone, timedelta
 
           now     = datetime.now(timezone.utc)
@@ -53,7 +54,7 @@ jobs:
           if not API_ID or not API_KEY:
               print("FEHLER: HONEYDB_API_ID oder HONEYDB_API_KEY nicht gesetzt!")
               print("GitHub Secret anlegen: Settings → Secrets and variables → Actions")
-              exit(1)
+              sys.exit(1)
 
           BASE_URL = "https://honeydb.io/api"
 

@@ -53,7 +53,7 @@ jobs:
       - name: Build Confidence Blacklists from seen_db
         run: |
           python3 << 'EOF'
-          import json, os
+          import json, os, sys
           from datetime import datetime, timezone, timedelta
 
           now     = datetime.now(timezone.utc)
@@ -66,7 +66,7 @@ jobs:
 
           if not os.path.exists(DB_FILE):
               print(f"FEHLER: {DB_FILE} nicht gefunden – bitte zuerst Update Combined Blacklist ausführen.")
-              exit(1)
+              sys.exit(1)
 
           with open(DB_FILE) as f:
               db = json.load(f)
@@ -85,7 +85,7 @@ jobs:
 
           if not os.path.exists(BLACKLIST):
               print(f"FEHLER: {BLACKLIST} nicht gefunden!")
-              exit(1)
+              sys.exit(1)
 
           with open(BLACKLIST) as f:
               combined_ips = {l.strip() for l in f if l.strip() and not l.startswith("#")}
