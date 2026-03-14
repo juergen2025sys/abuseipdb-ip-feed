@@ -37,11 +37,14 @@ jobs:
           import json
           import os
           import time
+          import ipaddress
           from datetime import datetime, timezone
 
           now = datetime.now(timezone.utc)
           now_str = now.strftime("%Y-%m-%d %H:%M UTC")
-          IP_RE = re.compile(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b')
+
+          IP_RE   = re.compile(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b')
+          CIDR_RE = re.compile(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/\d{1,2})\b')
 
           def fetch(url, timeout=30):
               try:
@@ -52,12 +55,120 @@ jobs:
                   print(f"  FEHLER {url.split('/')[-1]}: {e}")
                   return None
 
+          def is_valid_public_ipv4(ip):
+              try:
+                  obj = ipaddress.ip_address(ip)
+                  return (obj.version == 4
+                          and not obj.is_private
+                          and not obj.is_loopback
+                          and not obj.is_multicast
+                          and not obj.is_unspecified
+                          and not obj.is_reserved
+                          and not obj.is_link_local)
+              except Exception:
+                  return False
+
+          def is_valid_public_cidr(cidr):
+              try:
+                  net = ipaddress.ip_network(cidr, strict=False)
+                  return (net.version == 4
+                          and not net.is_private
+                          and not net.is_loopback
+                          and not net.is_multicast
+                          and not net.is_reserved
+                          and not net.is_link_local
+                          and net.prefixlen >= 8)
+              except Exception:
+                  return False
+
+          def parse_entries(text):
+              """
+              Universeller Parser fuer alle gaengigen Firewall-IP-Listen-Formate:
+                - Plain IPv4          (1.2.3.4)
+                - CIDR                (1.2.3.0/24)
+                - ip:port             (1.2.3.4:8080)    -> IP extrahiert
+                - Spamhaus DROP       (1.2.3.0/24 ; SBLxxx)
+                - FireHOL netset/ipset
+                - ipset add           (add setname 1.2.3.4)
+                - FortiGate           (set subnet 1.2.3.4 255.255.255.255)
+                - URLhaus             (http://1.2.3.4/pfad)
+                - CSV erste Spalte    (ip,port,malware -> ip extrahiert)
+                - Kommentare (#  ;  //) werden uebersprungen
+              Gibt set() von Strings zurueck: "a.b.c.d" oder "a.b.c.0/24".
+              CIDRs werden als Einzel-Eintrag behalten, nicht expandiert.
+              """
+              entries = set()
+              for raw_line in text.splitlines():
+                  line = raw_line.strip()
+                  if not line or line.startswith('#') or line.startswith(';') or line.startswith('//'):
+                      continue
+
+                  # FortiGate: "set subnet 1.2.3.4 255.255.255.255"
+                  fg = re.match(r'set\s+subnet\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', line)
+                  if fg:
+                      ip = fg.group(1)
+                      if is_valid_public_ipv4(ip):
+                          entries.add(ip)
+                      continue
+
+                  # ipset add: "add setname 1.2.3.4" oder "add setname 1.2.3.0/24"
+                  ipset_m = re.match(r'add\s+\S+\s+(\S+)', line)
+                  if ipset_m:
+                      val = ipset_m.group(1).split(';')[0].strip()
+                      if '/' in val:
+                          if is_valid_public_cidr(val):
+                              entries.add(val)
+                      else:
+                          if is_valid_public_ipv4(val):
+                              entries.add(val)
+                      continue
+
+                  # Inline-Kommentar abschneiden (Spamhaus DROP: "1.2.3.0/24 ; SBLxxx")
+                  line = re.split(r'\s*[;#]', line)[0].strip()
+                  if not line:
+                      continue
+
+                  # CSV: wenn Komma vorhanden, nur erste Spalte pruefen
+                  first_col = line.split(',')[0].strip()
+
+                  # CIDR in erster Spalte?
+                  cidr_m = CIDR_RE.match(first_col)
+                  if cidr_m:
+                      val = cidr_m.group(1)
+                      if is_valid_public_cidr(val):
+                          entries.add(val)
+                      continue
+
+                  # ip:port -> nur IP
+                  ip_port = re.match(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):\d+', first_col)
+                  if ip_port:
+                      ip = ip_port.group(1)
+                      if is_valid_public_ipv4(ip):
+                          entries.add(ip)
+                      continue
+
+                  # Plain IP in erster Spalte
+                  ip_m = re.match(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b', first_col)
+                  if ip_m:
+                      ip = ip_m.group(1)
+                      if is_valid_public_ipv4(ip):
+                          entries.add(ip)
+                      continue
+
+                  # Fallback: alle IPs und CIDRs im Rest der Zeile suchen
+                  # (z.B. URLhaus: "http://1.2.3.4/pfad")
+                  for cidr in CIDR_RE.findall(line):
+                      if is_valid_public_cidr(cidr):
+                          entries.add(cidr)
+                  for ip in IP_RE.findall(line):
+                      if is_valid_public_ipv4(ip):
+                          entries.add(ip)
+
+              return entries
+
+          # Rueckwaertskompatibilitaet: is_private() fuer alte Codestellen
           def is_private(ip):
-              parts = list(map(int, ip.split(".")))
-              return (parts[0] == 10 or
-                      (parts[0] == 172 and 16 <= parts[1] <= 31) or
-                      (parts[0] == 192 and parts[1] == 168) or
-                      parts[0] in (0, 127) or parts[0] >= 224)
+              return not is_valid_public_ipv4(ip)
 
           # ── CVE-Exploit-IP-Feeds (alle ohne API-Key) ──────────────────────
           CVE_SOURCES = {
@@ -110,7 +221,9 @@ jobs:
                   source_stats[name] = 0
                   continue
 
-              ips = {ip for ip in IP_RE.findall(text) if not is_private(ip)}
+              # parse_entries() erkennt alle gaengigen Formate:
+              # plain IPv4, CIDR, ip:port, FortiGate, ipset, URLhaus, CSV, DROP, netset
+              ips = parse_entries(text)
               all_exploit_ips.update(ips)
               source_stats[name] = len(ips)
 
@@ -142,24 +255,31 @@ jobs:
               with open(CVE_FILE) as f:
                   existing = {l.strip() for l in f if l.strip() and not l.startswith("#")}
 
+          def sort_key(entry):
+              # Sortiert IPs und CIDRs numerisch korrekt
+              ip_part = entry.split('/')[0]
+              try:
+                  return (tuple(int(o) for o in ip_part.split('.')), entry)
+              except Exception:
+                  return ((999,), entry)
+
           new_ips = all_exploit_ips - existing
-          final   = sorted(all_exploit_ips, key=lambda ip: tuple(int(o) for o in ip.split(".")))
+          final   = sorted(all_exploit_ips, key=sort_key)
 
           with open(CVE_FILE, "w") as f:
               f.write(f"# CVE Exploit & C2 IP Blocklist – NETSHIELD\n")
               f.write(f"# Aktualisiert: {now_str}\n")
               f.write(f"# Quellen: {len(CVE_SOURCES)}\n")
-              f.write(f"# Gesamt IPs: {len(final)} | Neu: {len(new_ips)}\n\n")
-              # Gruppiert nach Kategorie ausgeben
+              f.write(f"# Gesamt Eintraege: {len(final)} | Neu: {len(new_ips)}\n\n")
               written = set()
               for tag, ips in sorted(cve_ip_map.items()):
-                  valid = sorted(ips - written, key=lambda ip: tuple(int(o) for o in ip.split(".")))
+                  valid = sorted(ips - written, key=sort_key)
                   if valid:
                       f.write(f"# ── {tag} ──\n")
                       f.write("\n".join(valid) + "\n\n")
                       written.update(valid)
 
-          print(f"cve_exploit_ips.txt: {len(final)} IPs | +{len(new_ips)} neu")
+          print(f"cve_exploit_ips.txt: {len(final)} Eintraege | +{len(new_ips)} neu")
 
           # CVE-IPs werden NICHT direkt in combined_threat_blacklist_ipv4.txt geschrieben.
           # Der combined-blacklist-Workflow liest cve_exploit_ips.txt als Feed-Quelle ein.
