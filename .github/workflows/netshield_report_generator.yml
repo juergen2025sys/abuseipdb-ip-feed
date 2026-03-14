@@ -64,6 +64,7 @@ jobs:
               "vpn_proxy_ranges.txt":               "VPN / Proxy Ranges",
               "bot_detector_blacklist_ipv4.txt":    "Bot-Detector Blacklist",
               "honeypot_ips.txt":                   "Honeypot IPs",
+              "honeydb_ips.txt":                    "HoneyDB Community Honeypot (API)",
           }
 
           lines = []

@@ -1,0 +1,284 @@
+name: HoneyDB Monitor
+
+on:
+  schedule:
+    - cron: '15 22 * * *'   # täglich 22:15 UTC (vor Honeypot Monitor 23:00 und Combined 00:00)
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: write
+  actions: read
+  issues: none
+  packages: none
+  pull-requests: none
+  security-events: none
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  honeydb-monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: true
+
+      - name: Fetch HoneyDB Threat Data
+        env:
+          HONEYDB_API_ID:  ${{ secrets.HONEYDB_API_ID }}
+          HONEYDB_API_KEY: ${{ secrets.HONEYDB_API_KEY }}
+        run: |
+          python3 << 'EOF'
+          import urllib.request
+          import urllib.error
+          import json
+          import os
+          from datetime import datetime, timezone, timedelta
+
+          now     = datetime.now(timezone.utc)
+          now_str = now.strftime("%Y-%m-%d %H:%M UTC")
+          today   = now.strftime("%Y-%m-%d")
+
+          API_ID  = os.environ.get("HONEYDB_API_ID",  "")
+          API_KEY = os.environ.get("HONEYDB_API_KEY", "")
+
+          if not API_ID or not API_KEY:
+              print("FEHLER: HONEYDB_API_ID oder HONEYDB_API_KEY nicht gesetzt!")
+              print("GitHub Secret anlegen: Settings → Secrets and variables → Actions")
+              exit(1)
+
+          BASE_URL = "https://honeydb.io/api"
+
+          # ── API-Helper ────────────────────────────────────────────────────
+          requests_used = 0
+
+          def api_get(endpoint, label=""):
+              global requests_used
+              url = f"{BASE_URL}{endpoint}"
+              req = urllib.request.Request(url, headers={
+                  "X-HoneyDb-ApiId":  API_ID,
+                  "X-HoneyDb-ApiKey": API_KEY,
+                  "User-Agent":       "NETSHIELD-HoneyDB/1.0",
+              })
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as r:
+                      remaining = r.headers.get("honeydb-qpm-remaining", "?")
+                      consumed  = r.headers.get("honeydb-qpm-consumed",  "?")
+                      requests_used += 1
+                      print(f"  [{label or endpoint}] HTTP {r.status} | verbraucht: {consumed} | verbleibend: {remaining}/1500")
+                      return json.loads(r.read().decode("utf-8", errors="ignore"))
+              except urllib.error.HTTPError as e:
+                  if e.code == 429:
+                      print(f"  RATE LIMIT [{label or endpoint}] – übersprungen")
+                  elif e.code == 401:
+                      print(f"  AUTHENTIFIZIERUNG FEHLGESCHLAGEN [{label or endpoint}] – API Key prüfen!")
+                  else:
+                      print(f"  HTTP {e.code} [{label or endpoint}]: {e.reason}")
+                  return None
+              except Exception as e:
+                  print(f"  FEHLER [{label or endpoint}]: {e}")
+                  return None
+
+          def is_private(ip):
+              try:
+                  parts = list(map(int, ip.split(".")))
+                  return (parts[0] == 10 or
+                          (parts[0] == 172 and 16 <= parts[1] <= 31) or
+                          (parts[0] == 192 and parts[1] == 168) or
+                          parts[0] in (0, 127) or parts[0] >= 224)
+              except Exception:
+                  return True
+
+          def is_valid_ipv4(ip):
+              parts = ip.split(".")
+              if len(parts) != 4:
+                  return False
+              try:
+                  return all(0 <= int(p) <= 255 for p in parts)
+              except Exception:
+                  return False
+
+          def extract_ips_from_list(data):
+              ips = set()
+              if isinstance(data, list):
+                  for entry in data:
+                      ip = entry.get("remote_host", "") if isinstance(entry, dict) else ""
+                      if ip and is_valid_ipv4(ip) and not is_private(ip):
+                          ips.add(ip)
+              return ips
+
+          all_ips = set()
+          stats   = {}
+
+          # ── 1) Bad Hosts – alle (letzte 24h) ─────────────────────────────
+          print("\n[1/5] Bad Hosts (alle, letzte 24h)...")
+          data = api_get("/bad-hosts", "bad-hosts")
+          if data:
+              ips = extract_ips_from_list(data)
+              all_ips.update(ips)
+              stats["Bad Hosts (24h, alle Dienste)"] = len(ips)
+              print(f"  → {len(ips)} IPs")
+          else:
+              stats["Bad Hosts (24h, alle Dienste)"] = 0
+
+          # ── 2) Bad Hosts nach Dienst ──────────────────────────────────────
+          # Jeder Dienst = 1 API-Request. Bei 1500/Monat und täglichem Lauf
+          # (30 Tage) bleiben 1500/30 = 50 Requests/Tag verfügbar.
+          # 4 Dienste + 1 allgemein + 1 Sensor-Count = 6 Requests/Tag → sicher.
+          SERVICES = ["SSH", "HTTP", "TELNET", "FTP"]
+          print(f"\n[2/5] Bad Hosts nach Dienst ({', '.join(SERVICES)})...")
+          service_stats = {}
+          for svc in SERVICES:
+              data = api_get(f"/bad-hosts/{svc}", f"bad-hosts/{svc}")
+              if data:
+                  ips = extract_ips_from_list(data)
+                  all_ips.update(ips)
+                  service_stats[svc] = len(ips)
+                  stats[f"Bad Hosts – {svc}"] = len(ips)
+                  print(f"  → {svc}: {len(ips)} IPs")
+              else:
+                  service_stats[svc] = 0
+                  stats[f"Bad Hosts – {svc}"] = 0
+
+          # ── 3) Sensor Event Data – gestern (letzter vollständiger Tag) ────
+          # Liefert max. 1000 Records pro Call → Paging über from_id nötig.
+          # Wir holen nur gestern um das Request-Limit nicht zu sprengen.
+          yesterday     = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+          sensor_ips    = set()
+          sensor_total  = 0
+          print(f"\n[3/5] Sensor Event Data – {yesterday} (mit Paging)...")
+
+          # Zuerst Count abrufen (1 Request)
+          count_data = api_get(f"/sensor-data/{yesterday}/count", f"sensor-data/{yesterday}/count")
+          if count_data and isinstance(count_data, dict):
+              total_events = count_data.get("count", 0)
+              print(f"  Gesamt Events am {yesterday}: {total_events}")
+
+              # Paging: max. 5 Pages (5000 Events) um Request-Limit zu schonen
+              MAX_PAGES = 5
+              from_id   = 0
+              page      = 0
+              while page < MAX_PAGES:
+                  endpoint = f"/sensor-data/{yesterday}"
+                  if from_id > 0:
+                      endpoint += f"?from_id={from_id}"
+                  data = api_get(endpoint, f"sensor-data page {page+1}")
+                  if not data or not isinstance(data, dict):
+                      break
+                  events  = data.get("data", [])
+                  from_id = data.get("from_id", 0)
+                  for event in events:
+                      ip = event.get("remote_host", "")
+                      if ip and is_valid_ipv4(ip) and not is_private(ip):
+                          sensor_ips.add(ip)
+                  sensor_total += len(events)
+                  print(f"  Page {page+1}: {len(events)} Events, from_id={from_id}")
+                  page += 1
+                  if from_id == 0:
+                      break  # Keine weiteren Seiten
+          else:
+              print(f"  Sensor-Count für {yesterday} nicht verfügbar")
+
+          all_ips.update(sensor_ips)
+          stats[f"Sensor Events – {yesterday} (bis 5000)"] = len(sensor_ips)
+          print(f"  → {len(sensor_ips)} einzigartige Sensor-IPs")
+
+          # ── 4) Services (aktive Dienste, letzte 24h) ──────────────────────
+          # Liefert Übersicht welche Dienste aktiv angegriffen werden.
+          # Keine IPs, nur Statistik → für den Report nützlich.
+          print(f"\n[4/5] Services (aktive Dienste, letzte 24h)...")
+          svc_data = api_get("/services", "services")
+          top_services = []
+          if svc_data and isinstance(svc_data, list):
+              top_services = sorted(svc_data, key=lambda x: x.get("count", 0), reverse=True)[:10]
+              print(f"  → {len(svc_data)} aktive Dienste")
+          else:
+              print("  → Keine Dienst-Daten verfügbar")
+
+          # ── 5) Zusammenfassung ────────────────────────────────────────────
+          print(f"\n[5/5] Zusammenfassung...")
+          print(f"  Gesamt einzigartige IPs: {len(all_ips)}")
+          print(f"  API Requests verbraucht: {requests_used}")
+
+          # ── Ausgabedatei schreiben ────────────────────────────────────────
+          HONEYDB_FILE = "honeydb_ips.txt"
+          existing = set()
+          if os.path.exists(HONEYDB_FILE):
+              with open(HONEYDB_FILE) as f:
+                  existing = {l.strip() for l in f if l.strip() and not l.startswith("#")}
+
+          new_ips     = all_ips - existing
+          removed_ips = existing - all_ips
+          final_ips   = sorted(all_ips, key=lambda ip: tuple(int(o) for o in ip.split(".")))
+
+          with open(HONEYDB_FILE, "w") as f:
+              f.write(f"# NETSHIELD HoneyDB IP Blocklist\n")
+              f.write(f"# Aktualisiert: {now_str}\n")
+              f.write(f"# Quelle: honeydb.io (Community Honeypot Network)\n")
+              f.write(f"# Gesamt: {len(final_ips)} | +{len(new_ips)} neu | -{len(removed_ips)} entfernt\n\n")
+              f.write("\n".join(final_ips) + "\n")
+
+          print(f"  {HONEYDB_FILE}: {len(final_ips)} IPs geschrieben")
+
+          # ── Report ────────────────────────────────────────────────────────
+          lines = []
+          lines.append("# HoneyDB Monitor – Report")
+          lines.append(f"**Aktualisiert:** {now_str}  ")
+          lines.append(f"**Quelle:** [honeydb.io](https://honeydb.io) – Community Honeypot Network\n")
+          lines.append("---")
+          lines.append("## Endpunkte & Ergebnisse\n")
+          lines.append("| Endpunkt | IPs |")
+          lines.append("|---|---|")
+          for name, count in stats.items():
+              icon = "✅" if count > 0 else "⚠️"
+              lines.append(f"| {icon} {name} | {count:,} |")
+
+          if top_services:
+              lines.append("")
+              lines.append("---")
+              lines.append("## Top angegriffene Dienste (letzte 24h)\n")
+              lines.append("| Rang | Dienst | Anzahl Attacken |")
+              lines.append("|---|---|---|")
+              for i, svc in enumerate(top_services, 1):
+                  lines.append(f"| {i} | `{svc.get('service', '?')}` | {svc.get('count', 0):,} |")
+
+          lines.append("")
+          lines.append("---")
+          lines.append("## Zusammenfassung\n")
+          lines.append("| Metrik | Wert |")
+          lines.append("|---|---|")
+          lines.append(f"| Gesamt HoneyDB-IPs | **{len(final_ips):,}** |")
+          lines.append(f"| Neu (heute) | **+{len(new_ips):,}** |")
+          lines.append(f"| Entfernt | **-{len(removed_ips):,}** |")
+          lines.append(f"| API Requests verbraucht | **{requests_used}** von ~50/Tag (1500/Monat) |")
+          lines.append("")
+          lines.append("---")
+          lines.append("> ℹ️ Die IPs werden automatisch vom **update_combined_blacklist**-Workflow eingelesen.")
+          lines.append(f"\n---\n*Generiert: {now_str}*")
+
+          with open("honeydb_report.md", "w", encoding="utf-8") as f:
+              f.write("\n".join(lines))
+          print("  honeydb_report.md geschrieben")
+          print(f"\nFERTIG: {len(final_ips)} IPs | {requests_used} API Requests")
+          EOF
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add honeydb_ips.txt honeydb_report.md
+          if git diff --staged --quiet; then
+            echo "Keine Änderungen"
+          else
+            git commit -m "HoneyDB Monitor: $(date -u '+%Y-%m-%d %H:%M') UTC"
+            git pull --rebase origin ${GITHUB_REF_NAME}
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi

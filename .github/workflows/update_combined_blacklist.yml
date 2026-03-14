@@ -157,6 +157,7 @@ jobs:
               "abuseipdb_score100", "turris_greylist", "talos_intelligence",
               "tor_project_bulk", "tor_danme", "tor_critpath", "tor_secops",
               "abuseipdb_api_blacklist.txt",   # AbuseIPDB Live-API (Score≥50, HQ)
+              "honeydb_ips.txt",               # HoneyDB Community Honeypot Network (API)
               "data_shield",                      # DataShield Critical Feed (geprüfte Qualität)
           }
 
@@ -368,6 +369,7 @@ jobs:
               "cve_exploit_ips.txt":             True,
               "bot_detector_blacklist_ipv4.txt": False,
               "honeypot_ips.txt":                True,
+              "honeydb_ips.txt":                 True,   # HoneyDB Community Honeypot Network (API)
               "abuseipdb_api_blacklist.txt":     True,   # AbuseIPDB API (Round-Robin, HQ)
           }
           for local_file, is_hq_local in LOCAL_FEEDS.items():
@@ -673,7 +675,7 @@ jobs:
           PYEOF
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add combined_threat_blacklist_ipv4.txt active_blacklist_ipv4.txt combined_threat_blacklist_report.md seen_db_meta.json abuseipdb_api_blacklist.txt
+          git add combined_threat_blacklist_ipv4.txt active_blacklist_ipv4.txt combined_threat_blacklist_report.md seen_db_meta.json abuseipdb_api_blacklist.txt honeydb_ips.txt 2>/dev/null || true
           if git diff --staged --quiet; then
             echo "Keine Änderungen"
           else
@@ -690,10 +692,10 @@ jobs:
                 # Konflikt: unsere frisch generierten Dateien gewinnen immer
                 git checkout --ours combined_threat_blacklist_ipv4.txt active_blacklist_ipv4.txt \
                   combined_threat_blacklist_report.md \
-                  seen_db_meta.json abuseipdb_api_blacklist.txt 2>/dev/null || true
+                  seen_db_meta.json abuseipdb_api_blacklist.txt honeydb_ips.txt 2>/dev/null || true
                 git add combined_threat_blacklist_ipv4.txt active_blacklist_ipv4.txt \
                   combined_threat_blacklist_report.md seen_db_meta.json \
-                  abuseipdb_api_blacklist.txt 2>/dev/null || true
+                  abuseipdb_api_blacklist.txt honeydb_ips.txt 2>/dev/null || true
                 GIT_EDITOR=true git rebase --continue 2>/dev/null || git rebase --skip
               fi
               sleep $((attempt * 3))
