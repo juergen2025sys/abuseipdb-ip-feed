@@ -64,6 +64,73 @@ jobs:
               except Exception:
                   return True
 
+          def is_valid_public_ipv4(ip):
+              try:
+                  obj = ipaddress.ip_address(ip)
+                  return (obj.version == 4
+                          and not obj.is_private and not obj.is_loopback
+                          and not obj.is_multicast and not obj.is_unspecified
+                          and not obj.is_reserved and not obj.is_link_local)
+              except Exception:
+                  return False
+
+          def is_valid_public_cidr(cidr):
+              try:
+                  net = ipaddress.ip_network(cidr, strict=False)
+                  return (net.version == 4
+                          and not net.is_private and not net.is_loopback
+                          and not net.is_multicast and not net.is_reserved
+                          and not net.is_link_local and net.prefixlen >= 8)
+              except Exception:
+                  return False
+
+          def parse_entries(text):
+              """Universeller Parser: plain IPv4, CIDR, ip:port, ipset, FortiGate,
+              Spamhaus DROP, URLhaus, CSV erste Spalte. Privates/Loopback gefiltert."""
+              IP_RE_L   = re.compile(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b')
+              CIDR_RE_L = re.compile(r'\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/\d{1,2})\b')
+              entries = set()
+              for raw_line in text.splitlines():
+                  line = raw_line.strip()
+                  if not line or line.startswith('#') or line.startswith(';') or line.startswith('//'):
+                      continue
+                  fg = re.match(r'set\s+subnet\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', line)
+                  if fg:
+                      if is_valid_public_ipv4(fg.group(1)): entries.add(fg.group(1))
+                      continue
+                  ipset_m = re.match(r'add\s+\S+\s+(\S+)', line)
+                  if ipset_m:
+                      val = ipset_m.group(1).split(';')[0].strip()
+                      if '/' in val:
+                          if is_valid_public_cidr(val): entries.add(val)
+                      else:
+                          if is_valid_public_ipv4(val): entries.add(val)
+                      continue
+                  line = re.split(r'\s*[;#]', line)[0].strip()
+                  if not line: continue
+                  first_col = line.split(',')[0].strip()
+                  cidr_m = CIDR_RE_L.match(first_col)
+                  if cidr_m:
+                      if is_valid_public_cidr(cidr_m.group(1)): entries.add(cidr_m.group(1))
+                      continue
+                  ip_port = re.match(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):\d+', first_col)
+                  if ip_port:
+                      if is_valid_public_ipv4(ip_port.group(1)): entries.add(ip_port.group(1))
+                      continue
+                  ip_m = re.match(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b', first_col)
+                  if ip_m:
+                      if is_valid_public_ipv4(ip_m.group(1)): entries.add(ip_m.group(1))
+                      continue
+                  for cidr in CIDR_RE_L.findall(line):
+                      if is_valid_public_cidr(cidr): entries.add(cidr)
+                  for ip in IP_RE_L.findall(line):
+                      if is_valid_public_ipv4(ip): entries.add(ip)
+              return entries
+
+          def is_private(ip):
+              return not is_valid_public_ipv4(ip)
+
+
           VPN_SOURCES = {
               # ── Bekannte VPN-Provider ────────────────────────────────────
               "NordVPN":
@@ -108,8 +175,11 @@ jobs:
                   stats[name] = 0
                   continue
 
-              found_ips   = {ip for ip in IP_RE.findall(text)   if not is_private(ip)}
-              found_cidrs = {c  for c  in CIDR_RE.findall(text) if not is_private(c)}
+              # parse_entries erkennt alle Formate: plain IPv4, CIDR, ip:port,
+              # ipset, FortiGate subnet, URLhaus, CSV, Spamhaus DROP
+              _parsed     = parse_entries(text)
+              found_ips   = {e for e in _parsed if '/' not in e}
+              found_cidrs = {e for e in _parsed if '/' in e}
 
               # AWS JSON-Format speziell behandeln
               if "amazonaws" in url:
