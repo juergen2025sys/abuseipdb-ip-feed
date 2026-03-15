@@ -219,8 +219,8 @@ jobs:
               "bdix_prefix_ipv4":           ("https://raw.githubusercontent.com/tushroy/bdix-isp-blocks/refs/heads/master/bdix-prefix_ipv4.txt", False),
 
               # ── Abuse.ch ──────────────────────────────────────────────────
+              # bazaar_c2 entfernt: Endpunkt liefert Hash-Listen, keine IPs → 0 Treffer
               "urlhaus_ips":                ("https://urlhaus.abuse.ch/downloads/text/", True),
-              "bazaar_c2":                  ("https://bazaar.abuse.ch/export/txt/cscb/recent/", False),
 
               # ── FireHOL & Emerging Threats ────────────────────────────────
               "firehol_level1":             ("https://iplists.firehol.org/files/firehol_level1.netset", True),

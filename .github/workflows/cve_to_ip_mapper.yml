@@ -183,12 +183,7 @@ jobs:
               # C2-Tracker – aktive C2-Server bekannter Malware-Familien
               "C2-Tracker (Montysecurity)":
                   "https://raw.githubusercontent.com/montysecurity/C2-Tracker/main/data/all.txt",
-              # CISA KEV – Known Exploited Vulnerabilities IPs
-              "Malware Bazaar C2":
-                  "https://bazaar.abuse.ch/export/txt/cscb/recent/",
-              # Shadowserver – aktiv exploitete IPs
-              
-              # Botnet C2 IPs  
+              # Botnet C2 IPs
               "URLhaus Malware IPs":
                   "https://urlhaus.abuse.ch/downloads/text/",
               # C2 Intel Feeds – IP_RE extrahiert erste Spalte (ioc) korrekt,
